@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <title>Dynamic City Generator Pro - A* Visualizer High Contrast</title>
+    <style>
+        :root {
+            --primary: #1a1c2c; --accent: #f4b41a; --road: #3d3d3d;
+            --alley: #5d5d5d; --grass: #38b764; --water: #3b5dc9;
+            --neon-open: #00f3ff; --neon-closed: #ff00ff;
+        }
+        body { margin: 0; font-family: 'Segoe UI', sans-serif; background: #000; overflow: hidden; color: white; }
+        .toolbar {
+            background: rgba(26, 28, 44, 0.95); padding: 15px;
+            display: flex; gap: 20px; justify-content: center; align-items: center;
+            border-bottom: 2px solid var(--accent); z-index: 100;
+        }
+        .control-group { display: flex; align-items: center; gap: 10px; background: #333; padding: 5px 15px; border-radius: 8px; }
+        button {
+            padding: 10px 18px; border: none; border-radius: 8px; cursor: pointer;
+            font-weight: bold; transition: 0.3s; color: white; background: #444;
+            text-transform: uppercase; font-size: 12px;
+        }
+        button:hover { background: #666; transform: scale(1.02); }
+        .btn-gen { background: #2980b9; }
+        .btn-run { background: var(--accent); color: #000; }
+        .active-mode { outline: 3px solid white; box-shadow: 0 0 15px rgba(255,255,255,0.5); }
+        
+        #container { flex: 1; display: flex; justify-content: center; align-items: center; height: calc(100vh - 85px); position: relative; }
+        canvas { box-shadow: 0 0 100px rgba(0,0,0,0.9); border: 2px solid #333; background: #1a1c2c; }
+        
+        .algo-legend {
+            position: absolute; bottom: 20px; left: 20px;
+            background: rgba(0,0,0,0.85); padding: 15px; border-radius: 12px;
+            font-size: 13px; border: 1px solid #444; backdrop-filter: blur(5px);
+        }
+        input[type=range] { cursor: pointer; accent-color: var(--accent); }
+    </style>
+</head>
+<body>
+
+<div class="toolbar">
+    <button class="btn-gen" onclick="generateMap()">🔄 Reset Peta</button>
+    <div class="control-group">
+        <button id="setStartBtn" onclick="setMode('start')">📍 Start</button>
+        <button id="setEndBtn" onclick="setMode('end')">🏁 End</button>
+    </div>
+    <div class="control-group">
+        <label>⚡ Speed:</label>
+        <input type="range" id="speedSlider" min="1" max="100" value="70">
+    </div>
+    <button class="btn-run" onclick="runPathfinding()">🚀 Jalankan Navigasi</button>
+</div>
+
+<div id="container">
+    <canvas id="mapCanvas"></canvas>
+    <div class="algo-legend">
+        <div style="color: var(--neon-open); margin-bottom: 5px;"><strong>● Open Set:</strong> Mencari tetangga...</div>
+        <div style="color: var(--neon-closed); margin-bottom: 5px;"><strong>● Closed Set:</strong> Selesai diperiksa</div>
+        <div style="color: var(--accent)"><strong>● Final Path:</strong> Rute tercepat</div>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('mapCanvas');
+    const ctx = canvas.getContext('2d');
+    const speedSlider = document.getElementById('speedSlider');
+    const tileSize = 55;
+    const cols = 18; 
+    const rows = 11;
+    
+    let grid = [];
+    let startNode = null;
+    let endNode = null;
+    let currentMode = 'start';
+    let finalPath = [];
+    let carPos = 0;
+    let waterTick = 0;
+    
+    // State untuk Visualisasi A*
+    let openSetVisual = [];
+    let closedSetVisual = [];
+    let isCalculating = false;
+
+    const bTypes = [
+        { e: '🏢', c1: '#95a5a6', c2: '#7f8c8d' },
+        { e: '🏥', c1: '#ffffff', c2: '#bdc3c7' },
+        { e: '🏙️', c1: '#3498db', c2: '#2980b9' },
+        { e: '🏫', c1: '#f39c12', c2: '#d35400' }
+    ];
+
+    function init() {
+        canvas.width = cols * tileSize;
+        canvas.height = rows * tileSize;
+        generateMap();
+        animateLoop();
+    }
+
+    function generateMap() {
+        if(isCalculating) return;
+        grid = []; finalPath = []; carPos = 0;
+        openSetVisual = []; closedSetVisual = [];
+        
+        const riverX = Math.floor(Math.random() * (cols - 4)) + 2;
+        const mainRoadsX = [Math.floor(Math.random() * 5), Math.floor(Math.random() * 5) + 6, Math.floor(Math.random() * 5) + 12];
+        const mainRoadsY = [Math.floor(Math.random() * 3), Math.floor(Math.random() * 3) + 4, Math.floor(Math.random() * 3) + 8];
+
+        for (let r = 0; r < rows; r++) {
+            grid[r] = [];
+            for (let c = 0; c < cols; c++) {
+                let isRiver = (c === riverX || c === riverX + 1);
+                let isMainRoad = mainRoadsX.includes(c) || mainRoadsY.includes(r);
+                let isBridge = isRiver && isMainRoad;
+                let isAlley = (!isMainRoad && !isRiver) && ((r % 2 === 0 && Math.random() > 0.4) || (c % 3 === 0 && Math.random() > 0.4));
+
+                grid[r][c] = {
+                    x: c, y: r, isMainRoad, isAlley, isRiver, isBridge,
+                    isWalkable: isMainRoad || isAlley || isBridge,
+                    type: bTypes[Math.floor(Math.random() * bTypes.length)],
+                    g: 0, f: 0, h: 0, parent: null
+                };
+            }
+        }
+        ensureBridge(riverX, mainRoadsY);
+        randomizePositions();
+    }
+
+    function ensureBridge(rx, roadsY) {
+        let bridgeY = roadsY[Math.floor(Math.random() * roadsY.length)];
+        grid[bridgeY][rx].isBridge = true; grid[bridgeY][rx+1].isBridge = true;
+        grid[bridgeY][rx].isWalkable = true; grid[bridgeY][rx+1].isWalkable = true;
+    }
+
+    function setMode(mode) {
+        currentMode = mode;
+        document.querySelectorAll('button').forEach(b => b.classList.remove('active-mode'));
+        document.getElementById(mode === 'start' ? 'setStartBtn' : 'setEndBtn').classList.add('active-mode');
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        waterTick += 0.05;
+
+        for (let r = 0; r < rows; r++) {
+            for (let c = 0; c < cols; c++) {
+                const n = grid[r][c];
+                const px = c * tileSize; const py = r * tileSize;
+
+                if (n.isRiver && !n.isBridge) drawRiver(px, py);
+                else if (n.isBridge) drawBridge(px, py);
+                else if (n.isMainRoad) drawRoad(px, py, true);
+                else if (n.isAlley) drawRoad(px, py, false);
+                else { drawGrass(px, py); drawBuilding(px, py, n); }
+
+                // --- VISUALISASI PROSES A* ---
+                // Closed Set: Area yang sudah dievaluasi (Warna Magenta/Purple)
+                if (closedSetVisual.includes(n)) {
+                    ctx.fillStyle = 'rgba(255, 0, 255, 0.3)';
+                    ctx.fillRect(px, py, tileSize, tileSize);
+                    ctx.strokeStyle = 'rgba(255, 0, 255, 0.5)';
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(px + 1, py + 1, tileSize - 2, tileSize - 2);
+                }
+                // Open Set: Area pencarian aktif (Warna Neon Cyan)
+                if (openSetVisual.includes(n)) {
+                    ctx.fillStyle = 'rgba(0, 243, 255, 0.4)';
+                    ctx.fillRect(px, py, tileSize, tileSize);
+                    ctx.strokeStyle = '#00f3ff';
+                    ctx.lineWidth = 3;
+                    ctx.strokeRect(px + 4, py + 4, tileSize - 8, tileSize - 8);
+                }
+            }
+        }
+        renderPath();
+        drawMarkers();
+    }
+
+    async function runPathfinding() {
+        if (!startNode || !endNode || isCalculating) return;
+        
+        isCalculating = true;
+        carPos = 0; finalPath = []; 
+        closedSetVisual = []; openSetVisual = [startNode];
+        
+        grid.flat().forEach(n => { n.g=0; n.f=0; n.h=0; n.parent=null; });
+
+        let openSet = [startNode];
+
+        while (openSet.length > 0) {
+            openSet.sort((a,b) => a.f - b.f);
+            let curr = openSet[0];
+
+            if (curr === endNode) {
+                let temp = curr;
+                while(temp) { finalPath.push(temp); temp = temp.parent; }
+                finalPath.reverse();
+                openSetVisual = [];
+                isCalculating = false;
+                return;
+            }
+
+            openSet = openSet.filter(n => n !== curr);
+            closedSetVisual.push(curr);
+
+            getNeighbors(curr).forEach(nb => {
+                if (!closedSetVisual.includes(nb)) {
+                    let cost = nb.isMainRoad || nb.isBridge ? 1 : (nb.isAlley ? 5 : 999);
+                    let tg = curr.g + cost;
+                    
+                    if (!openSet.includes(nb) || tg < nb.g) {
+                        nb.g = tg;
+                        nb.h = Math.abs(nb.x - endNode.x) + Math.abs(nb.y - endNode.y);
+                        nb.f = nb.g + nb.h;
+                        nb.parent = curr;
+                        if (!openSet.includes(nb)) {
+                            openSet.push(nb);
+                        }
+                    }
+                }
+            });
+
+            // Update array visual untuk render
+            openSetVisual = [...openSet];
+
+            // FITUR KECEPATAN:
+            // Mengubah delay berdasarkan slider (1ms - 200ms)
+            let delay = 201 - (speedSlider.value * 2); 
+            await new Promise(r => setTimeout(r, delay));
+        }
+        isCalculating = false;
+    }
+
+    // --- FUNGSI HELPER DRAWING (Sama seperti sebelumnya namun lebih clean) ---
+    function drawRiver(x, y) {
+        ctx.fillStyle = '#2980b9'; ctx.fillRect(x, y, tileSize, tileSize);
+        ctx.strokeStyle = 'rgba(255,255,255,0.2)'; ctx.beginPath();
+        let offset = (waterTick * 15) % tileSize;
+        ctx.moveTo(x + offset, y); ctx.lineTo(x + offset - 15, y + tileSize); ctx.stroke();
+    }
+
+    function drawRoad(x, y, isMain) {
+        ctx.fillStyle = isMain ? '#2c2c2c' : '#4a4a4a'; ctx.fillRect(x, y, tileSize, tileSize);
+        if (isMain) {
+            ctx.strokeStyle = '#f1c40f'; ctx.setLineDash([12, 12]); ctx.lineWidth = 2; ctx.beginPath();
+            ctx.moveTo(x + tileSize/2, y); ctx.lineTo(x + tileSize/2, y + tileSize);
+            ctx.moveTo(x, y + tileSize/2); ctx.lineTo(x + tileSize, y + tileSize/2); ctx.stroke(); ctx.setLineDash([]);
+        }
+    }
+
+    function drawBridge(x, y) {
+        ctx.fillStyle = '#5d4037'; ctx.fillRect(x, y, tileSize, tileSize);
+        ctx.strokeStyle = '#3e2723'; ctx.lineWidth = 4; ctx.strokeRect(x+2, y+2, tileSize-4, tileSize-4);
+    }
+
+    function drawGrass(x, y) { ctx.fillStyle = '#2d5a27'; ctx.fillRect(x, y, tileSize, tileSize); }
+
+    function drawBuilding(x, y, n) {
+        const p = 12; ctx.fillStyle = 'rgba(0,0,0,0.4)'; ctx.fillRect(x+p+5, y+p+5, tileSize-p*2, tileSize-p*2);
+        ctx.fillStyle = n.type.c2; ctx.fillRect(x+p, y+p+4, tileSize-p*2, tileSize-p*2);
+        ctx.fillStyle = n.type.c1; ctx.fillRect(x+p, y+p, tileSize-p*2, (tileSize-p*2)-4);
+        ctx.font = '20px Arial'; ctx.textAlign = 'center';
+        ctx.fillText(n.type.e, x + tileSize/2, y + tileSize/1.4);
+    }
+
+    function drawMarkers() {
+        if(startNode) drawMarker(startNode.x * tileSize, startNode.y * tileSize, '#2ecc71', 'START');
+        if(endNode) drawMarker(endNode.x * tileSize, endNode.y * tileSize, '#e74c3c', 'END');
+    }
+
+    function drawMarker(x, y, c, t) {
+        ctx.shadowBlur = 15; ctx.shadowColor = c; ctx.fillStyle = c;
+        ctx.beginPath(); ctx.arc(x+tileSize/2, y+tileSize/2, 18, 0, Math.PI*2); ctx.fill();
+        ctx.strokeStyle = '#fff'; ctx.lineWidth = 3; ctx.stroke(); ctx.shadowBlur = 0;
+        ctx.fillStyle = '#fff'; ctx.font = 'bold 10px Arial'; ctx.textAlign = 'center';
+        ctx.fillText(t, x+tileSize/2, y+tileSize/2 + 4);
+    }
+
+    function renderPath() {
+        if (finalPath.length < 2) return;
+        ctx.beginPath(); ctx.strokeStyle = '#f1c40f'; ctx.lineWidth = 6; ctx.setLineDash([10, 5]);
+        finalPath.forEach((n, i) => {
+            const x = n.x * tileSize + tileSize/2; const y = n.y * tileSize + tileSize/2;
+            if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        });
+        ctx.stroke(); ctx.setLineDash([]);
+
+        if (carPos < finalPath.length - 1) {
+            const cur = finalPath[Math.floor(carPos)]; const next = finalPath[Math.ceil(carPos)];
+            const t = carPos % 1;
+            const cx = (cur.x + (next.x - cur.x) * t) * tileSize + tileSize/2;
+            const cy = (cur.y + (next.y - cur.y) * t) * tileSize + tileSize/2;
+            ctx.fillStyle = '#e67e22'; ctx.fillRect(cx-10, cy-10, 20, 20);
+            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.strokeRect(cx-10, cy-10, 20, 20);
+            carPos += (speedSlider.value / 1000) + 0.02; // Kecepatan mobil juga ikut slider
+        }
+    }
+
+    function getNeighbors(n) {
+        let r = [];
+        if (n.y > 0) r.push(grid[n.y-1][n.x]); if (n.y < rows-1) r.push(grid[n.y+1][n.x]);
+        if (n.x > 0) r.push(grid[n.y][n.x-1]); if (n.x < cols-1) r.push(grid[n.y][n.x+1]);
+        return r;
+    }
+
+    function randomizePositions() {
+        const walkable = grid.flat().filter(n => n.isWalkable);
+        startNode = walkable[0];
+        endNode = walkable[walkable.length - 1];
+        finalPath = []; openSetVisual = []; closedSetVisual = [];
+        draw();
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+        if(isCalculating) return;
+        const r = canvas.getBoundingClientRect();
+        const x = Math.floor((e.clientX - r.left)/tileSize);
+        const y = Math.floor((e.clientY - r.top)/tileSize);
+        if (grid[y] && grid[y][x]) {
+            if (currentMode === 'start') startNode = grid[y][x];
+            else endNode = grid[y][x];
+            finalPath = []; openSetVisual = []; closedSetVisual = [];
+            draw();
+        }
+    });
+
+    function animateLoop() { draw(); requestAnimationFrame(animateLoop); }
+    init();
+</script>
+</body>
+</html>
