@@ -1,0 +1,5 @@
+./src/algotithm/__pycache__
+./src/core/__pycache__
+./src/mapgen/__pycache__
+./src/ui/__pycache__
+./src/renderer/__pycache__
