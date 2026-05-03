@@ -47,6 +47,7 @@ class App:
         show_loading_screen(self.screen)
         gen = MapGen()
         self.city = gen.generate()
+        self.else_ren.generate_decorations(self.city)  # ---- ini tambahan auriel ---
         self._reset_path()
         self.ribbon.set_disabled(False)
         self.cam.cam_x = 0; self.cam.cam_y = 0
@@ -205,6 +206,8 @@ class App:
                 
                 if self.total_anim_steps > 0 or len(self.search_edges_anim) > 0:
                     self.dynamic_ren.draw_anim_layer_ground(self.city['nodes'], self.search_edges_anim, self.final_path_anim, self.anim_progress)
+
+                self.else_ren.draw_decorations()  # --- ini tambahan auriel ---    
                 
                 car_x, car_y, car_angle = None, None, None
                 if self.final_path_anim and self.anim_progress > 0:
