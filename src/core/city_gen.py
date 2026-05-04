@@ -8,17 +8,20 @@ class MapGen:
     def generate(self):
         nodes, edges, roundabouts = [], [], []
         centers = [{'x': 0, 'y': 0}]
+        
         for _ in range(10):
             p = random.choice(centers)
             a = random.random() * math.pi * 2; d = 400 + random.random() * 500
             centers.append({'x': p['x'] + math.cos(a)*d, 'y': p['y'] + math.sin(a)*d})
+            
         for _ in range(350):
             c = random.choice(centers)
             r = random.random() * 700; a = random.random() * math.pi * 2
             nx = c['x'] + r*math.cos(a); ny = c['y'] + r*math.sin(a)
             safe = True
             for n in nodes:
-                if (n.x-nx)**2 + (n.y-ny)**2 < 280**2: safe = False; break
+                # Jarak 350px agar blok jalan punya ruang cukup
+                if (n.x-nx)**2 + (n.y-ny)**2 < 350**2: safe = False; break
             if safe: nodes.append(Node(nx, ny))
             
         nCS = 400; nGrid = {}
@@ -31,7 +34,7 @@ class MapGen:
             for j in range(i+1, len(nodes)):
                 n1, n2 = nodes[i], nodes[j]
                 ds = (n1.x-n2.x)**2 + (n1.y-n2.y)**2
-                if ds > 1000**2: continue
+                if ds > 1000**2: continue 
                 cx = (n1.x+n2.x)/2; cy = (n1.y+n2.y)/2
                 rs = ds/4; ok = True; rad = math.sqrt(rs)
                 gx0 = int((cx-rad)//nCS); gx1 = int((cx+rad)//nCS)
@@ -68,6 +71,7 @@ class MapGen:
             if e in a.edges: a.edges.remove(e)
             if e in b.edges: b.edges.remove(e)
 
+        # Pemangkasan Sudut (Angle Pruning)
         for n in nodes:
             if len(n.edges) < 2: continue
             n.edges.sort(key=lambda e: math.atan2((e[1] if e[0] is n else e[0]).y - n.y, (e[1] if e[0] is n else e[0]).x - n.x))
@@ -79,7 +83,9 @@ class MapGen:
                 a1 = math.atan2(n1.y-n.y, n1.x-n.x); a2 = math.atan2(n2.y-n.y, n2.x-n.x)
                 diff = abs(a1-a2)
                 if diff > math.pi: diff = math.pi*2 - diff
-                if diff < math.pi/4:
+                
+                # Sudut 60 derajat (pi/3)
+                if diff < math.pi/3: 
                     l1 = (n1.x-n.x)**2+(n1.y-n.y)**2; l2 = (n2.x-n.x)**2+(n2.y-n.y)**2
                     tr.append(e1 if l1 > l2 else e2)
             for e in tr:
@@ -100,22 +106,7 @@ class MapGen:
                         if e in nb.edges: nb.edges.remove(e)
                     nodes.pop(i); trimming = True
 
-        for _ in range(3): 
-            current_edges = list(edges)
-            for e in current_edges:
-                n1, n2 = e[0], e[1]
-                dist = math.hypot(n1.x - n2.x, n1.y - n2.y)
-                if dist > 80: 
-                    edges.remove(e); n1.edges.remove(e); n2.edges.remove(e)
-                    mid_x = (n1.x + n2.x) / 2; mid_y = (n1.y + n2.y) / 2
-                    angle = math.atan2(n2.y - n1.y, n2.x - n1.x)
-                    offset = (random.random() - 0.5) * dist * 0.2
-                    mid_x += math.cos(angle + math.pi/2) * offset; mid_y += math.sin(angle + math.pi/2) * offset
-                    mid_node = Node(mid_x, mid_y); nodes.append(mid_node)
-                    e1 = [n1, mid_node]; e2 = [mid_node, n2]
-                    edges.extend([e1, e2])
-                    n1.edges.append(e1); mid_node.edges.extend([e1, e2]); n2.edges.append(e2)
-
+        # Relaxation diperkecil (0.15)
         for _ in range(8):
             nxs = []; nys = []
             for n in nodes:
@@ -128,19 +119,31 @@ class MapGen:
                 cnt = len(n.edges)
                 nxs.append(ax/cnt); nys.append(ay/cnt)
             for i, n in enumerate(nodes):
-                n.x = n.x*0.3 + nxs[i]*0.7; n.y = n.y*0.3 + nys[i]*0.7
+                n.x = n.x*0.85 + nxs[i]*0.15; n.y = n.y*0.85 + nys[i]*0.15
 
         hidden_edges = set(); final_nodes = []
         for n in nodes:
             if len(n.edges) >= 4 and random.random() > 0.8:
                 roundabouts.append(n); n.is_roundabout = True; ring = []; R = RW * 1.2 
-                for i in range(8):
-                    a = i * (math.pi * 2 / 8)
+                for i in range(4):
+                    a = i * (math.pi * 2 / 4) + (math.pi/4) 
                     rn = Node(n.x + math.cos(a)*R, n.y + math.sin(a)*R)
                     ring.append(rn); final_nodes.append(rn)
-                for i in range(8):
-                    e = [ring[i], ring[(i+1)%8]]; edges.append(e); hidden_edges.add(id(e)) 
-                    ring[i].edges.append(e); ring[(i+1)%8].edges.append(e)
+                    
+                for i in range(4):
+                    e = [ring[i], ring[(i+1)%4]]
+                    a1 = i * (math.pi * 2 / 4) + (math.pi/4)
+                    a2 = (i+1) * (math.pi * 2 / 4) + (math.pi/4)
+                    visual_points = []
+                    for j in range(1, 20):
+                        t = j / 20.0
+                        ang = a1 + (a2 - a1) * t
+                        visual_points.append({'x': n.x + math.cos(ang)*R, 'y': n.y + math.sin(ang)*R})
+                        
+                    e.append(visual_points) 
+                    edges.append(e); hidden_edges.add(id(e)) 
+                    ring[i].edges.append(e); ring[(i+1)%4].edges.append(e)
+                    
                 for e in list(n.edges):
                     other = e[1] if e[0] is n else e[0]
                     best_rn = min(ring, key=lambda rn: math.hypot(rn.x-other.x, rn.y-other.y))
@@ -150,6 +153,53 @@ class MapGen:
                 n.edges = []
             else: final_nodes.append(n)
         nodes = final_nodes
+        
+        # ------------------------------------------------------------------
+        # PERBAIKAN: GENERASI LENGKUNGAN ANTI-LANCIP / ANTI-KUSUT (NO CUSPS)
+        # ------------------------------------------------------------------
+        for e in edges:
+            if len(e) > 2: continue 
+            
+            n1, n2 = e[0], e[1]
+            dx = n2.x - n1.x
+            dy = n2.y - n1.y
+            dist = math.hypot(dx, dy)
+            
+            if dist > 80: 
+                perp_x = -dy / dist
+                perp_y = dx / dist
+                
+                seed = int(n1.x + n2.y + n1.y)
+                rnd = random.Random(seed)
+                direction = 1 if seed % 2 == 0 else -1
+                
+                # --- MATEMATIKA ANTI-LANCIP (SAFE MAGNITUDE BOUNDARY) ---
+                # Mengunci magnitudo (amplitudo lengkungan) maksimal agar 
+                # kemiringan/turunan gelombang tidak pernah melebihi pergerakan 
+                # majunya (dist / 2*pi).
+                max_safe_mag = dist * 0.12  # Sangat aman dari risiko melipat
+                magnitude = max_safe_mag * rnd.uniform(0.4, 1.0) * direction
+                
+                is_s_curve = rnd.random() > 0.4
+                
+                visual_points = []
+                steps = max(35, int(dist / 4))
+                
+                for j in range(1, steps):
+                    t = j / float(steps)
+                    if is_s_curve:
+                        # Full Wave (S-Curve): Gunakan 80% dari batas aman agar tidak terlalu tajam di tengah
+                        offset = math.sin(t * math.pi * 2.0) * (magnitude * 0.8)
+                    else:
+                        # Half Wave (C-Curve): Memakai sin^2 agar kurva menyatu SEMPURNA  
+                        # dan lurus dengan node di ujung jalan, mencegah patahan bersudut
+                        offset = (math.sin(t * math.pi)**2) * magnitude
+                        
+                    bx = n1.x + dx * t + perp_x * offset
+                    by = n1.y + dy * t + perp_y * offset
+                    visual_points.append({'x': bx, 'y': by})
+                    
+                e.append(visual_points) 
         
         buildings = place_buildings(nodes, edges, roundabouts)
 

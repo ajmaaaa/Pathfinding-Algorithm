@@ -1,16 +1,11 @@
-def catmull_rom(p0, p1, p2, p3, t):
-    t2 = t * t
-    t3 = t2 * t
-    # Koefisien Catmull-Rom yang lebih stabil
-    f1 = -0.5*t3 + t2 - 0.5*t
-    f2 =  1.5*t3 - 2.5*t2 + 1.0
-    f3 = -1.5*t3 + 2.0*t2 + 0.5*t
-    f4 =  0.5*t3 - 0.5*t2
-    x = p0[0]*f1 + p1[0]*f2 + p2[0]*f3 + p3[0]*f4
-    y = p0[1]*f1 + p1[1]*f2 + p2[1]*f3 + p3[1]*f4
-    return x, y
+import math
 
 def get_smooth_path_coord(path_edges, prog):
+    """
+    Kini mobil secara harfiah "membaca" titik aspal yang sudah
+    digambar melengkung oleh city_gen, sehingga mustahil mobil 
+    keluar jalur / bergerak patah-patah!
+    """
     if not path_edges: return None, None
     if prog <= path_edges[0]['start']: return path_edges[0]['from'].x, path_edges[0]['from'].y
     if prog >= path_edges[-1]['end']: return path_edges[-1]['to'].x, path_edges[-1]['to'].y
@@ -23,12 +18,43 @@ def get_smooth_path_coord(path_edges, prog):
     pe = path_edges[idx]
     t = (prog - pe['start']) / (pe['end'] - pe['start'])
     
-    p1 = (pe['from'].x, pe['from'].y); p2 = (pe['to'].x, pe['to'].y)
+    n1 = pe['from']
+    n2 = pe['to']
     
-    if idx > 0: p0 = (path_edges[idx-1]['from'].x, path_edges[idx-1]['from'].y)
-    else:       p0 = (p1[0] - (p2[0]-p1[0]), p1[1] - (p2[1]-p1[1])) 
+    # Cari jalur asli di Node
+    edge_data = None
+    for e in n1.edges:
+        if (e[0] is n2 and e[1] is n1) or (e[0] is n1 and e[1] is n2):
+            edge_data = e
+            break
+            
+    # Menyusuri lengkungan titik aspal
+    if edge_data and len(edge_data) > 2:
+        visual_pts = edge_data[2]
         
-    if idx < len(path_edges) - 1: p3 = (path_edges[idx+1]['to'].x, path_edges[idx+1]['to'].y)
-    else:                         p3 = (p2[0] + (p2[0]-p1[0]), p2[1] + (p2[1]-p1[1])) 
-
-    return catmull_rom(p0, p1, p2, p3, t)
+        pts = visual_pts
+        if edge_data[1] is n1: 
+            pts = list(reversed(visual_pts))
+            
+        full_pts = [{'x': n1.x, 'y': n1.y}] + pts + [{'x': n2.x, 'y': n2.y}]
+        
+        total_segments = len(full_pts) - 1
+        exact_pos = t * total_segments
+        
+        seg_idx = int(exact_pos)
+        seg_t = exact_pos - seg_idx
+        
+        if seg_idx >= total_segments:
+            return n2.x, n2.y
+            
+        pA = full_pts[seg_idx]
+        pB = full_pts[seg_idx + 1]
+        
+        # Interpolasi Linear antar titik aspal
+        x = pA['x'] + (pB['x'] - pA['x']) * seg_t
+        y = pA['y'] + (pB['y'] - pA['y']) * seg_t
+        return x, y
+        
+    x = n1.x + (n2.x - n1.x) * t
+    y = n1.y + (n2.y - n1.y) * t
+    return x, y
