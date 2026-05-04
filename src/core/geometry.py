@@ -1,13 +1,7 @@
-def catmull_rom(p0, p1, p2, p3, t):
-    t2 = t * t
-    t3 = t2 * t
-    # Koefisien Catmull-Rom yang lebih stabil
-    f1 = -0.5*t3 + t2 - 0.5*t
-    f2 =  1.5*t3 - 2.5*t2 + 1.0
-    f3 = -1.5*t3 + 2.0*t2 + 0.5*t
-    f4 =  0.5*t3 - 0.5*t2
-    x = p0[0]*f1 + p1[0]*f2 + p2[0]*f3 + p3[0]*f4
-    y = p0[1]*f1 + p1[1]*f2 + p2[1]*f3 + p3[1]*f4
+def quadratic_bezier(p0, p1, p2, t):
+    # Rumus Bezier Curve Kuadratik khusus untuk sudut (Sangat Ringan)
+    x = (1 - t)**2 * p0[0] + 2 * (1 - t) * t * p1[0] + t**2 * p2[0]
+    y = (1 - t)**2 * p0[1] + 2 * (1 - t) * t * p1[1] + t**2 * p2[1]
     return x, y
 
 def get_smooth_path_coord(path_edges, prog):
@@ -21,14 +15,45 @@ def get_smooth_path_coord(path_edges, prog):
             idx = i; break
             
     pe = path_edges[idx]
+    
+    # Pencegahan error jika panjang edge 0
+    if pe['end'] == pe['start']:
+        return pe['to'].x, pe['to'].y
+        
     t = (prog - pe['start']) / (pe['end'] - pe['start'])
     
-    p1 = (pe['from'].x, pe['from'].y); p2 = (pe['to'].x, pe['to'].y)
+    p1 = (pe['from'].x, pe['from'].y)
+    p2 = (pe['to'].x, pe['to'].y)
     
-    if idx > 0: p0 = (path_edges[idx-1]['from'].x, path_edges[idx-1]['from'].y)
-    else:       p0 = (p1[0] - (p2[0]-p1[0]), p1[1] - (p2[1]-p1[1])) 
+    # SMOOTH_FACTOR: Menentukan seberapa lebar radius tikungan 
+    # (0.25 berarti mobil mulai belok di 25% jarak ujung jalan)
+    SMOOTH_FACTOR = 0.25 
+    
+    if t < SMOOTH_FACTOR and idx > 0:
+        # 1. TIKUNGAN KELUAR (Berada di awal ruas jalan)
+        prev_pe = path_edges[idx-1]
+        p0 = (prev_pe['from'].x, prev_pe['from'].y)
         
-    if idx < len(path_edges) - 1: p3 = (path_edges[idx+1]['to'].x, path_edges[idx+1]['to'].y)
-    else:                         p3 = (p2[0] + (p2[0]-p1[0]), p2[1] + (p2[1]-p1[1])) 
-
-    return catmull_rom(p0, p1, p2, p3, t)
+        # Tarik titik kontrol bezier 25% dari simpang
+        start_curve = (p0[0] + (p1[0]-p0[0])*(1-SMOOTH_FACTOR), p0[1] + (p1[1]-p0[1])*(1-SMOOTH_FACTOR))
+        end_curve = (p1[0] + (p2[0]-p1[0])*SMOOTH_FACTOR, p1[1] + (p2[1]-p1[1])*SMOOTH_FACTOR)
+        
+        u = 0.5 + (t / SMOOTH_FACTOR) * 0.5
+        return quadratic_bezier(start_curve, p1, end_curve, u)
+        
+    elif t > (1 - SMOOTH_FACTOR) and idx < len(path_edges) - 1:
+        # 2. TIKUNGAN MASUK (Berada di akhir ruas jalan)
+        next_pe = path_edges[idx+1]
+        p3 = (next_pe['to'].x, next_pe['to'].y)
+        
+        start_curve = (p1[0] + (p2[0]-p1[0])*(1-SMOOTH_FACTOR), p1[1] + (p2[1]-p1[1])*(1-SMOOTH_FACTOR))
+        end_curve = (p2[0] + (p3[0]-p2[0])*SMOOTH_FACTOR, p2[1] + (p3[1]-p2[1])*SMOOTH_FACTOR)
+        
+        u = (t - (1 - SMOOTH_FACTOR)) / SMOOTH_FACTOR * 0.5
+        return quadratic_bezier(start_curve, p2, end_curve, u)
+        
+    else:
+        # 3. JALAN LURUS (Super ringan untuk CPU)
+        x = p1[0] + (p2[0] - p1[0]) * t
+        y = p1[1] + (p2[1] - p1[1]) * t
+        return x, y
