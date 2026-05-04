@@ -10,7 +10,7 @@ class ElseRenderer:
         self.cam = cam
         self.decorations = []
 
-        self.cat_img = pygame.image.load('cat.png').convert_alpha()
+        self.cat_img = pygame.image.load('assets/cat.png').convert_alpha() # struktur folder nya di ubah 
 
     def _ws(self, wx, wy):
         return self.cam.world_to_screen(wx, wy)
