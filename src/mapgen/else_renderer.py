@@ -10,7 +10,8 @@ class ElseRenderer:
         self.cam = cam
         self.decorations = []
 
-        self.cat_img = pygame.image.load('assets/cat.png').convert_alpha() # struktur folder nya di ubah 
+        # struktur folder nya di ubah 
+        self.cat_img = pygame.image.load('assets/cat.png').convert_alpha() 
 
     def _ws(self, wx, wy):
         return self.cam.world_to_screen(wx, wy)
@@ -30,7 +31,8 @@ class ElseRenderer:
             if dec_type == 'flower_patch':
                 color = random.choice([(231, 76, 60), (255, 119, 255), (155, 89, 182)])
                 patch = []
-                offsets = [(0, 0), (-12, -12), (12, -8), (-8, 12)]
+                # Jarak antar bunga dirapatkan agar tidak keluar bundaran
+                offsets = [(0, 0), (-6, -6), (6, -4), (-4, 6)] 
                 for i in range(random.randint(2, 4)):
                     ox, oy = offsets[i]
                     patch.append({'wx': rb.x + ox, 'wy': rb.y + oy})
@@ -107,15 +109,21 @@ class ElseRenderer:
                     if sx < -50 or sx > self.screen.get_width() + 50 or sy < -50 or sy > self.screen.get_height() + 50:
                         continue
                     
-                    radius = max(3, int(12 * sc))
-                    stem_len = max(6, int(25 * sc))
+                    radius = max(3, int(8 * sc))
+                    stem_len = max(8, int(35 * sc))
                     
-                    pygame.draw.line(self.screen, (46, 204, 113), (sx, sy), (sx, sy + stem_len), max(2, int(3 * sc)))
-                    pygame.draw.circle(self.screen, dec['color'], (sx, sy - radius), radius)
-                    pygame.draw.circle(self.screen, dec['color'], (sx, sy + radius), radius)
-                    pygame.draw.circle(self.screen, dec['color'], (sx - radius, sy), radius)
-                    pygame.draw.circle(self.screen, dec['color'], (sx + radius, sy), radius)
-                    pygame.draw.circle(self.screen, (241, 196, 15), (sx, sy), int(radius * 0.8))
+                    # TENTUKAN POSISI KEPALA BUNGA (Ditarik ke atas sejauh stem_len)
+                    flower_y = sy - stem_len
+                    
+                    # GAMBAR TANGKAI: Dari bawah (sy) tumbuh ke atas (flower_y)
+                    pygame.draw.line(self.screen, (27, 94, 32), (sx, sy), (sx, flower_y), max(2, int(3 * sc)))
+                    
+                    # GAMBAR KELOPAK: Mengelilingi kepala bunga yang sudah dinaikkan (flower_y)
+                    pygame.draw.circle(self.screen, dec['color'], (sx, flower_y - radius), radius)
+                    pygame.draw.circle(self.screen, dec['color'], (sx, flower_y + radius), radius)
+                    pygame.draw.circle(self.screen, dec['color'], (sx - radius, flower_y), radius)
+                    pygame.draw.circle(self.screen, dec['color'], (sx + radius, flower_y), radius)
+                    pygame.draw.circle(self.screen, (241, 196, 15), (sx, flower_y), int(radius * 0.8))
 
             elif dec['type'] == 'cat':
                 sx, sy = self._ws(dec['wx'], dec['wy'])

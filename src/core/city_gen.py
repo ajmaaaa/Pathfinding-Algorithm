@@ -100,12 +100,12 @@ class MapGen:
                         if e in nb.edges: nb.edges.remove(e)
                     nodes.pop(i); trimming = True
 
-        for _ in range(3): 
+        for _ in range(1): 
             current_edges = list(edges)
             for e in current_edges:
                 n1, n2 = e[0], e[1]
                 dist = math.hypot(n1.x - n2.x, n1.y - n2.y)
-                if dist > 80: 
+                if dist > 400: 
                     edges.remove(e); n1.edges.remove(e); n2.edges.remove(e)
                     mid_x = (n1.x + n2.x) / 2; mid_y = (n1.y + n2.y) / 2
                     angle = math.atan2(n2.y - n1.y, n2.x - n1.x)

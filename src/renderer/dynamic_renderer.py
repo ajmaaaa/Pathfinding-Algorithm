@@ -56,16 +56,31 @@ class DynamicRenderer:
             self.car_last_prog = 0.0
             return None, None, None
             
+        # Dapatkan posisi mobil saat ini
         car_x, car_y = get_smooth_path_coord(path_edges, progress)
-        nx, ny = get_smooth_path_coord(path_edges, progress + 0.1) 
+        
+        # --- SOLUSI: ANGLE FREEZE (Kunci Setir di Garis Finish) ---
+        max_prog = path_edges[-1]['end']  # Titik paling ujung dari jalan
+        if progress >= max_prog - 0.02:
+            # Jika mobil sudah 98% sampai di tujuan, JANGAN hitung sudut baru!
+            # Biarkan mobil meluncur lurus pakai sudut terakhir agar parkirnya rapi.
+            self.car_last_prog = progress
+            return car_x, car_y, self.car_angle
+        
+        # --- OPTIMASI SENSOR ARAH ---
+        # Ubah look-ahead menjadi 0.02 (lebih dekat) agar mobil tidak nyentak
+        nx, ny = get_smooth_path_coord(path_edges, progress + 0.02) 
         
         if car_x is not None and nx is not None:
-            target_angle = math.atan2(ny - car_y, nx - car_x)
-            if self.car_last_prog == 0.0: 
-                self.car_angle = target_angle 
-            else:
-                diff = (target_angle - self.car_angle + math.pi) % (math.pi * 2) - math.pi
-                self.car_angle += diff * 0.45
+            # Pastikan jarak sensor dan mobil tidak 0 agar tidak error matematika
+            if math.hypot(nx - car_x, ny - car_y) > 0.1: 
+                target_angle = math.atan2(ny - car_y, nx - car_x)
+                if self.car_last_prog == 0.0: 
+                    self.car_angle = target_angle 
+                else:
+                    diff = (target_angle - self.car_angle + math.pi) % (math.pi * 2) - math.pi
+                    # LERP Factor 0.35 (Drifting lebih smooth seperti di laporan)
+                    self.car_angle += diff * 0.35
                     
         self.car_last_prog = progress
         return car_x, car_y, self.car_angle
