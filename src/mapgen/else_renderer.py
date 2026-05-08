@@ -22,16 +22,25 @@ class ElseRenderer:
         if not city or 'nodes' not in city: return
         
         nodes = city['nodes']
+        edges = city.get('edges', [])
         buildings = city.get('buildings', [])
         roundabouts = city.get('roundabouts', [])
         
+        # Fungsi pembantu untuk Sensor Jalan (Distance from Point to Line Segment)
+        def dist_to_segment(px, py, ax, ay, bx, by):
+            l2 = (bx - ax)**2 + (by - ay)**2
+            if l2 == 0: return math.hypot(px - ax, py - ay)
+            t = max(0, min(1, ((px - ax) * (bx - ax) + (py - ay) * (by - ay)) / l2))
+            proj_x = ax + t * (bx - ax)
+            proj_y = ay + t * (by - ay)
+            return math.hypot(px - proj_x, py - proj_y)
+
         # --- 1. FITUR KHUSUS: PASTI MUNCUL DI TENGAH BUNDARAN ---
         for rb in roundabouts:
             dec_type = random.choice(['flower_patch', 'cat'])
             if dec_type == 'flower_patch':
                 color = random.choice([(231, 76, 60), (255, 119, 255), (155, 89, 182)])
                 patch = []
-                # Jarak antar bunga dirapatkan agar tidak keluar bundaran
                 offsets = [(0, 0), (-6, -6), (6, -4), (-4, 6)] 
                 for i in range(random.randint(2, 4)):
                     ox, oy = offsets[i]
@@ -58,7 +67,16 @@ class ElseRenderer:
             
             aman = True
             
-            # Sensor Jalan
+            # --- SENSOR GARIS JALAN BARU (Anti-Aspal) ---
+            for e in edges:
+                n1, n2 = e[0], e[1]
+                # Jika jarak objek ke garis tengah jalan kurang dari 50 px, batalkan!
+                if dist_to_segment(bx, by, n1.x, n1.y, n2.x, n2.y) < 50:
+                    aman = False
+                    break
+            if not aman: continue
+            
+            # Sensor Persimpangan (Opsional sebagai proteksi ekstra)
             for n in nodes:
                 if math.hypot(bx - n.x, by - n.y) < 65:
                     aman = False
