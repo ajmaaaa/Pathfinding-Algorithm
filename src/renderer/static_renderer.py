@@ -112,10 +112,10 @@ class StaticRenderer:
         self._sea_assets, self._sea_scaled = {}, {}
         self._water_tile = self._water_tile_size = None
         items = {
-            "fish_orange": (["fish_orange.jpg", "fish_orange.png", "fish.jpg", "ikan.png", "ikan.jpg"], 180, 120, 48),
-            "fish_purple": (["fish_purple.jpg", "fish_purple.png", "fish_ungu.jpg", "fish_ungu.png", "ikan_ungu.jpg", "ikan_ungu.png"], 180, 120, 48),
-            "shark_fin": (["shark_fin.png", "shark_fin.jpg", "sirip.png", "sirip.jpg", "fin.png", "fin.jpg", "shark.png", "shark.jpg", "image(277).png"], 135, 95, 58),
-            "boat": (["boat.png", "boat.jpg", "kapal.png", "kapal.jpg", "sailboat.png", "sailboat.jpg", "image(278).png"], 210, 160, 48),
+            "fish_orange": (["fish_orange.jpg", "fish_orange.jpg", "fish.jpg", "ikan.jpg", "ikan.jpg"], 180, 120, 48),
+            "fish_purple": (["fish_purple.jpg", "fish_purple.jpg", "fish_ungu.jpg", "fish_ungu.jpg", "ikan_ungu.jpg", "ikan_ungu.jpg"], 180, 120, 48),
+            "shark_fin": (["shark_fin.jpg", "shark_fin.jpg", "sirip.jpg", "sirip.jpg", "fin.jpg", "fin.jpg", "shark.jpg", "shark.jpg", "image(277).jpg"], 135, 95, 58),
+            "boat": (["boat.jpg", "boat.jpg", "kapal.jpg", "kapal.jpg", "sailboat.jpg", "sailboat.jpg", "image(278).jpg"], 210, 160, 48),
         }
         for key, (names, mw, mh, tol) in items.items():
             path = self._find_asset(names)
