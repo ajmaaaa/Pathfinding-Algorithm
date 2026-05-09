@@ -20,7 +20,6 @@ class MapGen:
             nx = c['x'] + r*math.cos(a); ny = c['y'] + r*math.sin(a)
             safe = True
             for n in nodes:
-                # Jarak 350px agar blok jalan punya ruang cukup
                 if (n.x-nx)**2 + (n.y-ny)**2 < 350**2: safe = False; break
             if safe: nodes.append(Node(nx, ny))
             
@@ -71,7 +70,6 @@ class MapGen:
             if e in a.edges: a.edges.remove(e)
             if e in b.edges: b.edges.remove(e)
 
-        # Pemangkasan Sudut (Angle Pruning)
         for n in nodes:
             if len(n.edges) < 2: continue
             n.edges.sort(key=lambda e: math.atan2((e[1] if e[0] is n else e[0]).y - n.y, (e[1] if e[0] is n else e[0]).x - n.x))
@@ -84,7 +82,6 @@ class MapGen:
                 diff = abs(a1-a2)
                 if diff > math.pi: diff = math.pi*2 - diff
                 
-                # Sudut 60 derajat (pi/3)
                 if diff < math.pi/3: 
                     l1 = (n1.x-n.x)**2+(n1.y-n.y)**2; l2 = (n2.x-n.x)**2+(n2.y-n.y)**2
                     tr.append(e1 if l1 > l2 else e2)
@@ -106,7 +103,6 @@ class MapGen:
                         if e in nb.edges: nb.edges.remove(e)
                     nodes.pop(i); trimming = True
 
-        # Relaxation diperkecil (0.15)
         for _ in range(8):
             nxs = []; nys = []
             for n in nodes:
@@ -155,7 +151,7 @@ class MapGen:
         nodes = final_nodes
         
         # ------------------------------------------------------------------
-        # PERBAIKAN: GENERASI LENGKUNGAN ANTI-LANCIP / ANTI-KUSUT (NO CUSPS)
+        # LENGKUNGAN SANTAI (NATURAL CURVES)
         # ------------------------------------------------------------------
         for e in edges:
             if len(e) > 2: continue 
@@ -165,7 +161,7 @@ class MapGen:
             dy = n2.y - n1.y
             dist = math.hypot(dx, dy)
             
-            if dist > 80: 
+            if dist > 80:
                 perp_x = -dy / dist
                 perp_y = dx / dist
                 
@@ -173,30 +169,30 @@ class MapGen:
                 rnd = random.Random(seed)
                 direction = 1 if seed % 2 == 0 else -1
                 
-                # --- MATEMATIKA ANTI-LANCIP (SAFE MAGNITUDE BOUNDARY) ---
-                # Mengunci magnitudo (amplitudo lengkungan) maksimal agar 
-                # kemiringan/turunan gelombang tidak pernah melebihi pergerakan 
-                # majunya (dist / 2*pi).
-                max_safe_mag = dist * 0.12  # Sangat aman dari risiko melipat
-                magnitude = max_safe_mag * rnd.uniform(0.4, 1.0) * direction
+                # PERBAIKAN 1: Magnitude ditekan menjadi sangat landai (5% - 12%)
+                # Ini akan membuat lengkungan terlihat biasa-biasa saja dan realistis.
+                magnitude = dist * rnd.uniform(0.05, 0.12) * direction
                 
-                is_s_curve = rnd.random() > 0.4
+                # PERBAIKAN 2: S-Curve dibuat sangat jarang (hanya 15% kemungkinan).
+                # 85% jalan akan menggunakan C-Curve biasa yang mengayun satu arah.
+                is_s_curve = rnd.random() > 0.85
                 
                 visual_points = []
-                steps = max(35, int(dist / 4))
+                steps = max(40, int(dist / 3))
                 
                 for j in range(1, steps):
                     t = j / float(steps)
+                    
                     if is_s_curve:
-                        # Full Wave (S-Curve): Gunakan 80% dari batas aman agar tidak terlalu tajam di tengah
-                        offset = math.sin(t * math.pi * 2.0) * (magnitude * 0.8)
+                        # S-Curve yang lebih santai (faktor pengali ekstrem dihilangkan)
+                        offset = math.sin(t * math.pi * 2.0) * math.sin(t * math.pi) * magnitude
                     else:
-                        # Half Wave (C-Curve): Memakai sin^2 agar kurva menyatu SEMPURNA  
-                        # dan lurus dengan node di ujung jalan, mencegah patahan bersudut
-                        offset = (math.sin(t * math.pi)**2) * magnitude
-                        
+                        # C-Curve landai yang mulus masuk-keluar persimpangan
+                        offset = (1.0 - math.cos(t * math.pi * 2.0)) * 0.5 * magnitude
+                    
                     bx = n1.x + dx * t + perp_x * offset
                     by = n1.y + dy * t + perp_y * offset
+                    
                     visual_points.append({'x': bx, 'y': by})
                     
                 e.append(visual_points) 
