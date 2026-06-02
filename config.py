@@ -5,16 +5,19 @@ SCREEN_W  = 1280
 SCREEN_H  = 800
 RIBBON_H  = 88      
 FPS       = 60
-RW        = 30      
+RW        = 85      
 LP        = 1200    
-ANIM_SPEED = 0.008  
+SEARCH_ANIM_SPEED = 0.0012  # Kecepatan visualisasi pencarian rute (lebih lambat)
+DRIVE_ANIM_SPEED = 0.008   # Kecepatan jalannya mobil setelah rute ditemukan
 
 C = {
-  'bg'        : (41, 128, 185),    
-  'grass'     : (125, 206, 116),   
-  'road_outer': (142, 158, 171),   
-  'road_inner': (74, 98, 116),     
-  'road_line' : (221, 232, 239),   
+  'bg'        : (15, 80, 150),    # Lautan / Samudra (Warna BG original)
+  'sand'      : (237, 214, 155),   # Pasir pantai
+  'grass'     : (125, 206, 116),   # Daratan pulau (rumput)
+  'road_shadow': (50, 60, 65),
+  'road_outer': (140, 150, 155),   
+  'road_inner': (40, 48, 52),     
+  'road_line' : (255, 255, 255),   
   'rb_grass'  : (82, 190, 128),    
   'win_light' : (174, 214, 241),
   'win_dark'  : (26, 143, 193),
@@ -27,19 +30,20 @@ C = {
                  (243,156,18),(231,76,60),(39,174,96)],
   'white'     : (255, 255, 255),
   'black'     : (0, 0, 0),
-  'ribbon_bg' : (255, 255, 255),
-  'ribbon_sep': (208, 215, 222),
-  'btn_hov'   : (240, 246, 255),
-  'btn_act'   : (239, 246, 255),
-  'btn_border': (199, 217, 245),
-  'txt_dark'  : (55, 65, 81),
-  'txt_dim'   : (156, 163, 175),
-  'txt_label' : (100, 116, 139),
-  'stat_blue' : (37, 99, 235),
-  'stat_purp' : (124, 58, 237),
-  'stat_teal' : (13, 148, 136),
-  'stat_amber': (217, 119, 6),
-  'stat_rose' : (225, 29, 72),
+  'ribbon_bg' : (252, 253, 255),
+  'ribbon_top': (255, 255, 255),
+  'ribbon_sep': (224, 228, 238),
+  'btn_hov'   : (237, 242, 255),
+  'btn_act'   : (224, 234, 255),
+  'btn_border': (180, 204, 255),
+  'txt_dark'  : (30,  41,  82),
+  'txt_dim'   : (148, 158, 184),
+  'txt_label' : (120, 132, 165),
+  'stat_blue' : (37,  99,  235),
+  'stat_purp' : (109,  40, 217),
+  'stat_teal' : (13,  148, 136),
+  'stat_amber': (202,  96,   6),
+  'stat_rose' : (220,  38,  72),
 }
 
 NAME_T1 = ["Rumah Warga", "Toko Kelontong", "Warung Kopi", "Klinik Desa", "Rumah Budi", "Kios Mini", "Rumah Singgah"]
