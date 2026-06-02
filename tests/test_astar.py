@@ -34,7 +34,3 @@ class TestAStar(unittest.TestCase):
 
         # Memastikan jalur berakhir di node tujuan
         self.assertEqual(pe[-1]['to'], n3)
-
-
-if __name__ == "__main__":
-    unittest.main()
