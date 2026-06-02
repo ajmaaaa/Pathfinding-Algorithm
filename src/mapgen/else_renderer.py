@@ -1,7 +1,7 @@
 import pygame
 from config import C, RW
 from src.ui.hud import get_font
-
+# update
 class ElseRenderer:
     def __init__(self, screen, cam):
         self.screen = screen
