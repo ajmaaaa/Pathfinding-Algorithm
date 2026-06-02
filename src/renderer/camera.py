@@ -1,8 +1,10 @@
 from config import RIBBON_H
+#ubah pemanggilan
 
 class Camera:
     def __init__(self, sw, sh):
         self.sw = sw; self.sh = sh
+        self.ribbon_h = RIBBON_H
         self.cam_x = 0.0; self.cam_y = 0.0
         self.zoom  = 0.8
         self.MIN   = 0.07; self.MAX = 6.0
@@ -12,12 +14,12 @@ class Camera:
 
     def world_to_screen(self, wx, wy):
         sx = (wx - self.cam_x)*self.zoom + self.sw/2
-        sy = (wy - self.cam_y)*self.zoom + self.sh/2 + RIBBON_H
+        sy = (wy - self.cam_y)*self.zoom + self.sh/2 + self.ribbon_h
         return sx, sy
 
     def screen_to_world(self, sx, sy):
         wx = (sx - self.sw/2)/self.zoom + self.cam_x
-        wy = (sy - self.sh/2 - RIBBON_H)/self.zoom + self.cam_y
+        wy = (sy - self.sh/2 - self.ribbon_h)/self.zoom + self.cam_y
         return wx, wy
 
     def pan(self, dx, dy):
