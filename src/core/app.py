@@ -1,18 +1,19 @@
 import pygame
 import math
 import random
-from config import SCREEN_W, SCREEN_H, RIBBON_H, FPS, ANIM_SPEED
+from config import SCREEN_W, SCREEN_H, RIBBON_H, FPS, SEARCH_ANIM_SPEED, DRIVE_ANIM_SPEED
 from src.renderer.camera import Camera
 from src.renderer.static_renderer import StaticRenderer
 from src.renderer.dynamic_renderer import DynamicRenderer
 from src.mapgen.building_renderer import BuildingRenderer
 from src.mapgen.else_renderer import ElseRenderer
 from src.ui.ribbon import Ribbon, ZoomControls
-from src.ui.hud import draw_badge, draw_tooltip
+from src.ui.hud import draw_badge, draw_tooltip, get_font
 from src.ui.loading import show_loading_screen
 from src.core.city_gen import MapGen
 from src.algorithm.pathfinder import run_astar_anim
-from src.core.geometry import get_smooth_path_coord
+from src.core.geometry import get_smooth_path_coord, find_closest_road_point
+from src.core.graph import Node
 
 class App:
     def __init__(self):
@@ -22,7 +23,8 @@ class App:
         self.clock  = pygame.time.Clock()
 
         W, H = self.screen.get_size()
-        self.cam = Camera(W, H-RIBBON_H)
+        self.ribbon_h = RIBBON_H
+        self.cam = Camera(W, H-self.ribbon_h)
         
         self.static_ren = StaticRenderer(self.screen, self.cam)
         self.dynamic_ren = DynamicRenderer(self.screen, self.cam)
@@ -34,28 +36,58 @@ class App:
 
         self.city        = None; self.mode = None
         self.start_node  = None; self.end_node = None
+        self.start_edge  = None; self.end_edge = None
         self.is_playing  = False; self.anim_progress = 0.0; self.total_anim_steps = 0.0
         self.search_edges_anim = []; self.final_path_anim = []
-        
+        self._pending_dist = 0.0  # jarak rute disimpan sementara
+        self._pending_ms   = 0.0  # waktu cari disimpan sementara
+        self._total_visited = 0   # total node dikunjungi A*
+        self._path_nodes   = []   # daftar node pada jalur final
+
         self.auto_cam    = 'free' 
         self.dragging    = False; self.drag_last = (0,0)
         self.mouse_pos   = (-1000, -1000); self.hovered_building = None
 
+        self.first_gen   = True
+        self.load_or_generate()
+
+    def center_camera_on_island(self, init=False):
+        pulau_entity = None
+        if self.city and 'entities' in self.city:
+            for e in self.city['entities']:
+                if e.__class__.__name__ == "Pulau":
+                    pulau_entity = e
+                    break
+        if pulau_entity:
+            self.cam.cam_x = pulau_entity.x
+            self.cam.cam_y = getattr(pulau_entity, 'render_y', pulau_entity.y)
+        else:
+            self.cam.cam_x = 2400
+            self.cam.cam_y = 2800
+        if init:
+            self.cam.zoom = 0.8
+
+    def load_or_generate(self):
+        show_loading_screen(self.screen)
         self._do_generate()
 
     def _do_generate(self):
         show_loading_screen(self.screen)
-        gen = MapGen()
-        self.city = gen.generate()
+        generator = MapGen()
+        self.city = generator.compile_graph()
         self._reset_path()
         self.ribbon.set_disabled(False)
-        self.cam.cam_x = 0; self.cam.cam_y = 0
+        self.center_camera_on_island(init=self.first_gen)
+        self.first_gen = False
 
     def _reset_path(self):
         self.start_node = None; self.end_node = None; self.mode = None
+        self.start_edge = None; self.end_edge = None
         self.is_playing = False; self.anim_progress = 0.0; self.total_anim_steps = 0.0
         self.search_edges_anim = []; self.final_path_anim = []; self.auto_cam = 'free'
-        
+        self._pending_dist = 0.0; self._pending_ms = 0.0
+        self._total_visited = 0; self._path_nodes = []
+
         if self.city:
             for n in self.city['nodes']: n.eval_step = float('inf'); n.disc_step = float('inf')
 
@@ -68,17 +100,159 @@ class App:
 
     def _sync_stats(self):
         if not self.city: return
+
+        # --- Dikunjungi: node yang dievaluasi A* selama fase pencarian ---
         v_count = sum(1 for n in self.city['nodes'] if n.eval_step <= self.anim_progress)
-        e_count = sum(1 for e in self.final_path_anim if self.anim_progress >= e['end'])
-        self.ribbon.set_stat('Dikunjungi', str(v_count)); self.ribbon.set_stat('Edge Jalur', str(e_count))
-        self.ribbon.set_stat('Node Jalur', str(e_count + 1) if e_count > 0 else '0')
+        self.ribbon.set_stat('Dikunjungi', str(v_count))
+
+        # --- Node & Edge Jalur: ikuti posisi mobil di jalur final ---
+        # Hitung berapa node path yang sudah dilalui mobil
+        # Setiap elemen final_path_anim dari node A ke B mewakili 1 edge
+        # Node yang sudah dilewati = jumlah edge selesai + 1 (node awal)
+        if self.final_path_anim and self.anim_progress >= self.final_path_anim[0]['start']:
+            # Hitung edge jalur yang sudah SELESAI dilewati (pe['end'] <= progress)
+            # Khusus: abaikan turn-curve (from == to) karena bukan edge graph asli
+            real_edges_done = sum(
+                1 for pe in self.final_path_anim
+                if pe['from'] is not pe['to'] and self.anim_progress >= pe['end']
+            )
+            # Edge yang sedang dilalui saat ini
+            real_edges_in_progress = sum(
+                1 for pe in self.final_path_anim
+                if pe['from'] is not pe['to']
+                and pe['start'] <= self.anim_progress < pe['end']
+            )
+            node_count = real_edges_done + 1 if (real_edges_done + real_edges_in_progress) > 0 else 1
+            self.ribbon.set_stat('Edge Jalur', str(real_edges_done))
+            self.ribbon.set_stat('Node Jalur', str(node_count))
+        else:
+            self.ribbon.set_stat('Edge Jalur', '0')
+            self.ribbon.set_stat('Node Jalur', '0')
+
+        # --- Jarak Rute & Waktu Cari: tampil setelah animasi selesai ---
+        if self.anim_progress >= self.total_anim_steps and self.total_anim_steps > 0:
+            km = self._pending_dist / 100
+            self.ribbon.set_stat('Jarak Rute', f'{km:.1f} km')
+            self.ribbon.set_stat('Waktu Cari', f'{self._pending_ms:.2f} ms')
+            self.ribbon.set_stat('Dikunjungi', str(self._total_visited))
 
     def _run_astar(self):
         if not self.start_node or not self.end_node: return
-        se, pe, dist, ms, steps = run_astar_anim(self.start_node, self.end_node, self.city['nodes'])
+        
+        # Simpan state graph asli
+        original_nodes = list(self.city['nodes'])
+        original_edges = list(self.city['edges'])
+        
+        modified_nodes_edges = {}
+        def backup_node_edges(node):
+            if node not in modified_nodes_edges:
+                modified_nodes_edges[node] = list(node.edges)
+                
+        temp_nodes_to_add = []
+        temp_edges_to_add = []
+        edges_to_remove = []
+        
+        # 1. Jika start_node adalah node baru
+        if self.start_node not in original_nodes:
+            temp_nodes_to_add.append(self.start_node)
+            u, v = self.start_edge
+            backup_node_edges(u)
+            backup_node_edges(v)
+            edges_to_remove.append((u, v))
+            e1 = (u, self.start_node)
+            e2 = (self.start_node, v)
+            temp_edges_to_add.extend([e1, e2])
+            self.start_node.edges.extend([e1, e2])
+            
+        # 2. Jika end_node adalah node baru
+        if self.end_node not in original_nodes:
+            if self.end_node not in temp_nodes_to_add:
+                temp_nodes_to_add.append(self.end_node)
+            u, v = self.end_edge
+            backup_node_edges(u)
+            backup_node_edges(v)
+            edges_to_remove.append((u, v))
+            e1 = (u, self.end_node)
+            e2 = (self.end_node, v)
+            temp_edges_to_add.extend([e1, e2])
+            self.end_node.edges.extend([e1, e2])
+            
+        # Kasus khusus jika start_node dan end_node berada di edge yang sama
+        if (self.start_node not in original_nodes and 
+            self.end_node not in original_nodes and 
+            self.start_edge == self.end_edge):
+            u, v = self.start_edge
+            import math
+            dist_start = math.hypot(self.start_node.x - u.x, self.start_node.y - u.y)
+            dist_end = math.hypot(self.end_node.x - u.x, self.end_node.y - u.y)
+            
+            temp_edges_to_add.clear()
+            self.start_node.edges.clear()
+            self.end_node.edges.clear()
+            
+            if dist_start < dist_end:
+                e1 = (u, self.start_node)
+                e2 = (self.start_node, self.end_node)
+                e3 = (self.end_node, v)
+            else:
+                e1 = (u, self.end_node)
+                e2 = (self.end_node, self.start_node)
+                e3 = (self.start_node, v)
+                
+            temp_edges_to_add.extend([e1, e2, e3])
+            
+            if dist_start < dist_end:
+                self.start_node.edges.extend([e1, e2])
+                self.end_node.edges.extend([e2, e3])
+            else:
+                self.start_node.edges.extend([e2, e3])
+                self.end_node.edges.extend([e1, e2])
+                
+        # Terapkan perubahan ke graph
+        self.city['nodes'].extend(temp_nodes_to_add)
+        for e in temp_edges_to_add:
+            self.city['edges'].append(e)
+            e[0].edges.append(e)
+            e[1].edges.append(e)
+            
+        for u, v in edges_to_remove:
+            to_remove_global = [ge for ge in self.city['edges'] if (ge[0] is u and ge[1] is v) or (ge[0] is v and ge[1] is u)]
+            for ge in to_remove_global:
+                if ge in self.city['edges']:
+                    self.city['edges'].remove(ge)
+            
+            u_to_remove = [le for le in u.edges if (le[0] is u and le[1] is v) or (le[0] is v and le[1] is u)]
+            for le in u_to_remove:
+                if le in u.edges:
+                    u.edges.remove(le)
+                    
+            v_to_remove = [le for le in v.edges if (le[0] is u and le[1] is v) or (le[0] is v and le[1] is u)]
+            for le in v_to_remove:
+                if le in v.edges:
+                    v.edges.remove(le)
+                    
+        try:
+            se, pe, dist, ms, steps = run_astar_anim(
+                self.start_node,
+                self.end_node,
+                self.city['nodes'],
+                self.city.get('edge_curves', {})
+            )
+        finally:
+            # Kembalikan graph asli
+            self.city['nodes'] = original_nodes
+            self.city['edges'] = original_edges
+            for node, orig_edges in modified_nodes_edges.items():
+                node.edges = orig_edges
+                
         self.search_edges_anim = se; self.final_path_anim = pe; self.total_anim_steps = steps
-        km = dist/100
-        self.ribbon.set_stat('Waktu Cari', f'{ms:.2f} ms'); self.ribbon.set_stat('Jarak Rute', f'{km:.1f} km')
+        # Simpan sementara — akan ditampilkan setelah animasi selesai
+        self._pending_dist = dist
+        self._pending_ms   = ms
+        self._total_visited = sum(1 for n in self.city['nodes'] if n.eval_step < float('inf'))
+        # Reset stat ke — hingga animasi selesai
+        self.ribbon.set_stat('Jarak Rute', '—'); self.ribbon.set_stat('Waktu Cari', '—')
+        self.ribbon.set_stat('Dikunjungi', '0'); self.ribbon.set_stat('Node Jalur', '0'); self.ribbon.set_stat('Edge Jalur', '0')
         self.ribbon.slider.max_val = steps; self.ribbon.slider.disabled = False
         self.ribbon.btn_prev.disabled = False; self.ribbon.btn_next.disabled = False
         self.anim_progress = 0.0; self.is_playing = True; self.auto_cam = 'follow'
@@ -110,12 +284,12 @@ class App:
             dt_ms = self.clock.tick(FPS); W, H = self.screen.get_size()
             if W <= 0 or H <= 0: pygame.event.pump(); continue
                 
-            self.cam.sw = W; self.cam.sh = H-RIBBON_H
+            self.cam.sw = W; self.cam.sh = H-self.ribbon_h
             
             # Sync sizes to renderers
-            self.static_ren.W = W; self.static_ren.H = H-RIBBON_H
-            self.dynamic_ren.W = W; self.dynamic_ren.H = H-RIBBON_H
-            self.building_ren.W = W; self.building_ren.H = H-RIBBON_H
+            self.static_ren.W = W; self.static_ren.H = H-self.ribbon_h
+            self.dynamic_ren.W = W; self.dynamic_ren.H = H-self.ribbon_h
+            self.building_ren.W = W; self.building_ren.H = H-self.ribbon_h
             
             self.ribbon.W = W; self.zoom_c = ZoomControls(W, H)
             mx, my = pygame.mouse.get_pos(); self.mouse_pos = (mx, my)
@@ -123,30 +297,61 @@ class App:
             for ev in pygame.event.get():
                 if ev.type == pygame.QUIT: running = False
                 elif ev.type == pygame.VIDEORESIZE: self.screen = pygame.display.set_mode(ev.size, pygame.RESIZABLE)
+                elif ev.type == pygame.KEYDOWN:
+                    if ev.key == pygame.K_e:
+                        self._handle_action('edit')
                 elif ev.type == pygame.MOUSEWHEEL:
-                    if my > RIBBON_H:
+                    if my > self.ribbon_h:
                         zoom_factor = 1.0 + (ev.y * 0.05); self.cam.do_zoom(zoom_factor); self.auto_cam = 'free' 
                 elif ev.type == pygame.MULTIGESTURE:
-                    if my > RIBBON_H:
+                    if my > self.ribbon_h:
                         zoom_factor = 1.0 + (ev.dists * 2.5); self.cam.do_zoom(zoom_factor); self.auto_cam = 'free'
                 elif ev.type == pygame.MOUSEBUTTONDOWN:
                     if ev.button == 1:
-                        if my <= RIBBON_H:
+                        toggle_r = self.ribbon.get_toggle_rect()
+                        if toggle_r.collidepoint(mx, my):
+                            self.ribbon.visible = not self.ribbon.visible
+                            self.ribbon_h = RIBBON_H if self.ribbon.visible else 0
+                            self.cam.ribbon_h = self.ribbon_h
+                            self.cam.sh = H - self.ribbon_h
+                            self.static_ren.H = H - self.ribbon_h
+                            self.dynamic_ren.H = H - self.ribbon_h
+                            self.building_ren.H = H - self.ribbon_h
+                        elif my <= self.ribbon_h:
                             if self.ribbon.slider.handle_mouse(mx, my, 'down'): self.is_playing = False; self._update_play_ui()
                             else:
                                 action = self.ribbon.check_click(mx, my)
                                 if action: self._handle_action(action)
                         else:
-                            zc = self.zoom_c.click(mx, my)
-                            if zc == 'in': self.cam.do_zoom(1.3); self.auto_cam = 'free'
-                            elif zc == 'out': self.cam.do_zoom(0.77); self.auto_cam = 'free'
-                            elif self.mode and self.city:
-                                wx, wy = self.cam.screen_to_world(mx, my)
-                                n = min(self.city['nodes'], key=lambda nd: (nd.x-wx)**2+(nd.y-wy)**2)
-                                if self.mode == 'start': self.start_node = n
-                                else: self.end_node = n
-                                self.mode = None
-                            else: self.dragging = True; self.drag_last = (mx, my); self.auto_cam = 'free' 
+                             zc = self.zoom_c.click(mx, my)
+                             if zc == 'in': self.cam.do_zoom(1.3); self.auto_cam = 'free'
+                             elif zc == 'out': self.cam.do_zoom(0.77); self.auto_cam = 'free'
+                             elif self.mode and self.city:
+                                 wx, wy = self.cam.screen_to_world(mx, my)
+                                 best_pt, best_edge = find_closest_road_point(wx, wy, self.city['edges'])
+                                 if best_pt:
+                                     import math
+                                     u, v = best_edge
+                                     dist_u = math.hypot(best_pt[0] - u.x, best_pt[1] - u.y)
+                                     dist_v = math.hypot(best_pt[0] - v.x, best_pt[1] - v.y)
+                                     if dist_u < 1e-3:
+                                         n = u
+                                         edge = None
+                                     elif dist_v < 1e-3:
+                                         n = v
+                                         edge = None
+                                     else:
+                                         n = Node(best_pt[0], best_pt[1])
+                                         edge = best_edge
+                                         
+                                     if self.mode == 'start':
+                                         self.start_node = n
+                                         self.start_edge = edge
+                                     else:
+                                         self.end_node = n
+                                         self.end_edge = edge
+                                 self.mode = None
+                             else: self.dragging = True; self.drag_last = (mx, my); self.auto_cam = 'free' 
                 elif ev.type == pygame.MOUSEBUTTONUP:
                     if ev.button == 1:
                         self.dragging = False
@@ -154,13 +359,21 @@ class App:
                             self.ribbon.slider.handle_mouse(mx, my, 'up'); self.anim_progress = self.ribbon.slider.val; self._sync_stats()
                 elif ev.type == pygame.MOUSEMOTION:
                     if self.ribbon.slider.dragging:
-                        self.ribbon.slider.handle_mouse(mx, my, 'move'); self.anim_progress = self.ribbon.slider.val; self._sync_stats()
-                    elif self.dragging and my > RIBBON_H:
+                         self.ribbon.slider.handle_mouse(mx, my, 'move'); self.anim_progress = self.ribbon.slider.val; self._sync_stats()
+                    elif self.dragging and my > self.ribbon_h:
                         dx = mx - self.drag_last[0]; dy = my - self.drag_last[1]; self.cam.pan(dx, dy); self.drag_last = (mx, my)
 
             if self.is_playing:
                 old_prog = self.anim_progress
-                self.anim_progress += dt_ms * ANIM_SPEED
+                # Gunakan SEARCH_ANIM_SPEED jika masih mencari rute, DRIVE_ANIM_SPEED jika mobil berjalan
+                is_searching = True
+                if self.final_path_anim:
+                    car_start = self.final_path_anim[0]['start']
+                    if self.anim_progress >= car_start:
+                        is_searching = False
+                
+                speed = SEARCH_ANIM_SPEED if is_searching else DRIVE_ANIM_SPEED
+                self.anim_progress += dt_ms * speed
                 if self.final_path_anim:
                     car_start = self.final_path_anim[0]['start']
                     if old_prog < car_start and self.anim_progress >= car_start: self.auto_cam = 'follow'
@@ -176,7 +389,7 @@ class App:
                 if self.anim_progress >= car_start_time:
                     cx, cy = get_smooth_path_coord(self.final_path_anim, self.anim_progress)
                     if cx is not None:
-                        target_zoom = 2.5 
+                        target_zoom = 0.95 
                         self.cam.zoom += (target_zoom - self.cam.zoom) * 0.08
                         self.cam.cam_x += (cx - self.cam.cam_x) * 0.25
                         self.cam.cam_y += (cy - self.cam.cam_y) * 0.25
@@ -190,9 +403,11 @@ class App:
                 if abs(self.cam.zoom - target_zoom) < 0.01 and math.hypot(cx - self.cam.cam_x, cy - self.cam.cam_y) < 20: self.auto_cam = 'free'
 
             self.hovered_building = None
-            if not self.dragging and my > RIBBON_H and self.city:
+            if not self.dragging and my > self.ribbon_h and self.city:
                 wx, wy = self.cam.screen_to_world(mx, my)
                 for b in reversed(self.city['buildings']):
+                    if b['type'].lower().startswith('kavling'):
+                        continue
                     dist_sq = (b['x'] - wx)**2 + (b['y'] - wy)**2
                     if dist_sq < (90 * b['scale'])**2: self.hovered_building = b; break
 
@@ -201,7 +416,11 @@ class App:
             
             if self.city:
                 self.static_ren.draw_map(self.city)
-                if self.static_ren.show_graph: self.static_ren.draw_graph(self.city['nodes'], self.city['edges'])
+                
+
+
+                if self.static_ren.show_graph:
+                    self.static_ren.draw_graph(self.city['nodes'], self.city['edges'], self.city.get('edge_curves', {}))
                 
                 if self.total_anim_steps > 0 or len(self.search_edges_anim) > 0:
                     self.dynamic_ren.draw_anim_layer_ground(self.city['nodes'], self.search_edges_anim, self.final_path_anim, self.anim_progress)
@@ -210,9 +429,17 @@ class App:
                 if self.final_path_anim and self.anim_progress > 0:
                     car_x, car_y, car_angle = self.dynamic_ren.get_car_transform(self.final_path_anim, self.anim_progress)
                 
+                # PASS 1: Render semua kavling (alas tanah) terlebih dahulu
+                for b in self.city['buildings']:
+                    if b['type'].lower().startswith('kavling'):
+                        self.building_ren.draw_building(b)
+                
+                # PASS 2: Render mobil dan semua bangunan vertikal lainnya
                 car_drawn = False
                 for b in self.city['buildings']:
-                    if car_x is not None and not car_drawn and car_y < b['y']:
+                    if b['type'].lower().startswith('kavling'):
+                        continue
+                    if car_x is not None and not car_drawn and car_y < b.get('sort_y', b['y']):
                         self.dynamic_ren.draw_car(car_x, car_y, car_angle)
                         car_drawn = True
                     self.building_ren.draw_building(b)
@@ -225,8 +452,8 @@ class App:
                 if self.hovered_building: draw_tooltip(self.screen, self.hovered_building['name'], mx, my)
 
             self.ribbon.draw(self.screen); self.zoom_c.draw(self.screen, self.cam.zoom)
-            if self.mode == 'start': draw_badge(self.screen, '📍 Mode SET START — klik titik pada peta', W)
-            elif self.mode == 'end': draw_badge(self.screen, '🏁 Mode SET END — klik titik pada peta', W)
+            if self.mode == 'start': draw_badge(self.screen, '📍 Mode SET START — klik titik pada peta', W, self.ribbon_h)
+            elif self.mode == 'end': draw_badge(self.screen, '🏁 Mode SET END — klik titik pada peta', W, self.ribbon_h)
 
             pygame.display.flip()
         pygame.quit()
@@ -234,10 +461,17 @@ class App:
     def _handle_action(self, action):
         if action == 'gen': self._do_generate()
         elif action == 'acak':
-            if self.city and len(self.city['nodes']) > 1:
-                self._reset_path(); a, b = random.sample(self.city['nodes'], 2); self.start_node = a; self.end_node = b; self.auto_cam = 'free'
+            if self.city:
+                valid_nodes = [n for n in self.city['nodes'] if not getattr(n, 'is_roundabout', False)]
+                if len(valid_nodes) > 1:
+                    self._reset_path()
+                    a, b = random.sample(valid_nodes, 2)
+                    self.start_node = a
+                    self.end_node = b
+                    self.auto_cam = 'free'
         elif action == 'start': self.mode = 'start' if self.mode != 'start' else None
         elif action == 'end': self.mode = 'end' if self.mode != 'end' else None
+        elif action == 'edit': pass
         elif action == 'play': self._toggle_play()
         elif action == 'reset': self._reset_path()
         elif action == 'prev': self._step_anim(-1)
