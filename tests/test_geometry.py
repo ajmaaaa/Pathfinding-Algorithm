@@ -20,7 +20,3 @@ class TestGeometry(unittest.TestCase):
         # Hasil harus berupa koordinat (x, y)
         self.assertIsInstance(res, tuple)
         self.assertEqual(len(res), 2)
-
-
-if __name__ == "__main__":
-    unittest.main()
