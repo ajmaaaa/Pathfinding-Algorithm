@@ -97,14 +97,6 @@ def polyline_length(points):
         total += (dx*dx + dy*dy) ** 0.5
     return total
 
-def polyline_length(points):
-    total = 0.0
-    for i in range(1, len(points)):
-        dx = points[i][0] - points[i-1][0]
-        dy = points[i][1] - points[i-1][1]
-        total += (dx*dx + dy*dy) ** 0.5
-    return total
-
 def point_on_polyline(points, t):
     if not points:
         return None
@@ -160,4 +152,37 @@ def get_smooth_path_coord(path_edges, prog):
 
     return catmull_rom(p0, p1, p2, p3, t)
 
+def find_closest_road_point(wx, wy, edges):
+    import math
+    best_dist = float('inf')
+    best_pt = None
+    best_edge = None
     
+    for u, v in edges:
+        dx = v.x - u.x
+        dy = v.y - u.y
+        L2 = dx*dx + dy*dy
+        if L2 < 0.0001:
+            continue
+        L = math.sqrt(L2)
+        
+        t = ((wx - u.x)*dx + (wy - u.y)*dy) / L2
+        
+        min_t = 0.0
+        max_t = 1.0
+        if getattr(u, 'is_roundabout', False):
+            min_t = max(0.0, min(0.5, 140.25 / L))
+        if getattr(v, 'is_roundabout', False):
+            max_t = min(1.0, max(0.5, 1.0 - 140.25 / L))
+            
+        t_clamped = max(min_t, min(max_t, t))
+        px = u.x + t_clamped * dx
+        py = u.y + t_clamped * dy
+        
+        dist = math.hypot(wx - px, wy - py)
+        if dist < best_dist:
+            best_dist = dist
+            best_pt = (px, py)
+            best_edge = (u, v)
+            
+    return best_pt, best_edge
