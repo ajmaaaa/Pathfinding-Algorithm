@@ -1,4 +1,3 @@
-# 🗺️ A* Pathfinding Visualizer
 
 <div align="center">
 
@@ -8,7 +7,7 @@
 <br/>
 
 <h1>
-  🗺️ A* Pathfinding Visualizer
+  🗺️ A* Pathfinding Algorithm
 </h1>
 
 <p><em>Watch the algorithm think — on a procedurally generated isometric island city</em></p>
