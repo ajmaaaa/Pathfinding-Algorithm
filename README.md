@@ -1,10 +1,5 @@
 <div align="center">
 
-<img src="docs/screenshot.png" alt="A* Pathfinding Visualizer — isometric city map" width="100%" style="border-radius:12px"/>
-
-<br/>
-<br/>
-
 <h1>
   🗺️ A* Pathfinding Visualizer
 </h1>
