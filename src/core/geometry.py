@@ -91,10 +91,73 @@ def make_curved_edge_points(a, b, bend=0.115, steps=72, use_bspline=False):
 
 def polyline_length(points):
     total = 0.0
-
     for i in range(1, len(points)):
         dx = points[i][0] - points[i-1][0]
         dy = points[i][1] - points[i-1][1]
         total += (dx*dx + dy*dy) ** 0.5
-
     return total
+
+def polyline_length(points):
+    total = 0.0
+    for i in range(1, len(points)):
+        dx = points[i][0] - points[i-1][0]
+        dy = points[i][1] - points[i-1][1]
+        total += (dx*dx + dy*dy) ** 0.5
+    return total
+
+def point_on_polyline(points, t):
+    if not points:
+        return None
+    if len(points) == 1 or t <= 0:
+        return points[0]
+    if t >= 1:
+        return points[-1]
+
+    total = polyline_length(points)
+    if total <= 0:
+        return points[0]
+
+    target = total * t
+    walked = 0.0
+    for i in range(1, len(points)):
+        p0 = points[i - 1]
+        p1 = points[i]
+        seg = ((p1[0] - p0[0])**2 + (p1[1] - p0[1])**2) ** 0.5
+        if walked + seg >= target:
+            local_t = (target - walked) / max(0.0001, seg)
+            return (
+                p0[0] + (p1[0] - p0[0]) * local_t,
+                p0[1] + (p1[1] - p0[1]) * local_t
+            )
+        walked += seg
+    return points[-1]
+
+def get_smooth_path_coord(path_edges, prog):
+    if not path_edges: return None, None
+    if prog <= path_edges[0]['start']: return path_edges[0]['from'].x, path_edges[0]['from'].y
+    if prog >= path_edges[-1]['end']: return path_edges[-1]['to'].x, path_edges[-1]['to'].y
+    
+    idx = 0
+    for i, pe in enumerate(path_edges):
+        if pe['start'] <= prog <= pe['end']:
+            idx = i; break
+            
+    pe = path_edges[idx]
+    t = (prog - pe['start']) / (pe['end'] - pe['start'])
+
+    if 'curve' in pe:
+        pt = point_on_polyline(pe['curve'], t)
+        if pt:
+            return pt
+    
+    p1 = (pe['from'].x, pe['from'].y); p2 = (pe['to'].x, pe['to'].y)
+    
+    if idx > 0: p0 = (path_edges[idx-1]['from'].x, path_edges[idx-1]['from'].y)
+    else:       p0 = (p1[0] - (p2[0]-p1[0]), p1[1] - (p2[1]-p1[1])) 
+        
+    if idx < len(path_edges) - 1: p3 = (path_edges[idx+1]['to'].x, path_edges[idx+1]['to'].y)
+    else:                         p3 = (p2[0] + (p2[0]-p1[0]), p2[1] + (p2[1]-p1[1])) 
+
+    return catmull_rom(p0, p1, p2, p3, t)
+
+    
