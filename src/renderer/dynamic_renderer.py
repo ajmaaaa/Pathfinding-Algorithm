@@ -474,6 +474,86 @@ class DynamicRenderer:
                 pygame.draw.circle(self.screen, elem['color'], (int(cx), int(cy)), int(rad))
                 pygame.draw.circle(self.screen, (0, 0, 0), (int(cx), int(cy)), int(rad), 1)
 
+    def get_car_transform(self, path_edges, progress):
+        if not path_edges or progress <= 0 or progress < path_edges[0]['start']:
+            self.car_last_prog = progress
+            self._angle_initialized = False
+            self.car_last_x = None
+            self.car_last_y = None
+            return None, None, None
+
+        car_x, car_y = get_smooth_path_coord(path_edges, progress)
+        if car_x is None:
+            return None, None, None
+
+        # Find current segment index and its speed
+        idx = 0
+        for i, pe in enumerate(path_edges):
+            if pe['start'] <= progress <= pe['end']:
+                idx = i
+                break
+        
+        current_pe = path_edges[idx]
+        from src.core.geometry import polyline_length
+        pe_len = polyline_length(current_pe['curve'])
+        pe_dur = current_pe['end'] - current_pe['start']
+        
+        if pe_dur > 0.0001:
+            speed_px_per_prog = pe_len / pe_dur
+        else:
+            speed_px_per_prog = 24.0
+            
+        # Target physical lookahead (in pixels)
+        # Closer lookaheads for tighter cornering and accurate centerline tracking.
+        lookahead_dists = [8.0, 20.0, 35.0]
+        dx_acc, dy_acc = 0.0, 0.0
+        weight_total = 0.0
+        
+        for dist_la, w in zip(lookahead_dists, [1.0, 0.6, 0.3]):
+            # Convert physical lookahead distance to progress unit lookahead
+            la = dist_la / max(1.0, speed_px_per_prog)
+            nx, ny = get_smooth_path_coord(path_edges, progress + la)
+            if nx is not None:
+                dx_acc += (nx - car_x) * w
+                dy_acc += (ny - car_y) * w
+                weight_total += w
+
+        if weight_total > 0 and (abs(dx_acc) > 0.001 or abs(dy_acc) > 0.001):
+            dx = dx_acc / weight_total
+            dy = dy_acc / weight_total
+            # Convert isometric screen-space direction → 3D world-space angle
+            dx_3d = 0.5 * (dx / 1.6 + dy / 0.8)
+            dy_3d = 0.5 * (dy / 0.8 - dx / 1.6)
+            self.car_target_angle = math.atan2(dy_3d, dx_3d)
+
+        # ── Smooth angular interpolation (shortest arc) ─────────────────────
+        if not self._angle_initialized or self.car_last_x is None:
+            self.car_smooth_angle = self.car_target_angle
+            self._angle_initialized = True
+        else:
+            # Calculate physical distance traveled in this frame
+            dx_pos = car_x - self.car_last_x
+            dy_pos = car_y - self.car_last_y
+            ds = math.hypot(dx_pos, dy_pos)
+            
+            # Find shortest angular distance (handles ±π wrap-around)
+            delta = self.car_target_angle - self.car_smooth_angle
+            delta = (delta + math.pi) % (2 * math.pi) - math.pi
+            
+            # Distance-based smoothing factor
+            # Less drift at high speed, smooth turning at low speed
+            # Lower distance constant = faster steering alignment (less drift)
+            distance_constant = 1.0
+            smooth = 1.0 - math.exp(-ds / distance_constant)
+            smooth = max(0.18, min(0.9, smooth))
+            
+            self.car_smooth_angle += delta * smooth
+
+        self.car_angle = self.car_smooth_angle
+        self.car_last_prog = progress
+        self.car_last_x = car_x
+        self.car_last_y = car_y
+        return car_x, car_y, self.car_angle
 
             self._draw_curve(ov, curve, (251, 191, 36, 64), w1)
             self._draw_curve(ov, curve, (0, 0, 0, 64), w2)
