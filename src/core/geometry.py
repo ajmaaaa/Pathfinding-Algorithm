@@ -91,10 +91,98 @@ def make_curved_edge_points(a, b, bend=0.115, steps=72, use_bspline=False):
 
 def polyline_length(points):
     total = 0.0
-
     for i in range(1, len(points)):
         dx = points[i][0] - points[i-1][0]
         dy = points[i][1] - points[i-1][1]
         total += (dx*dx + dy*dy) ** 0.5
-
     return total
+
+def point_on_polyline(points, t):
+    if not points:
+        return None
+    if len(points) == 1 or t <= 0:
+        return points[0]
+    if t >= 1:
+        return points[-1]
+
+    total = polyline_length(points)
+    if total <= 0:
+        return points[0]
+
+    target = total * t
+    walked = 0.0
+    for i in range(1, len(points)):
+        p0 = points[i - 1]
+        p1 = points[i]
+        seg = ((p1[0] - p0[0])**2 + (p1[1] - p0[1])**2) ** 0.5
+        if walked + seg >= target:
+            local_t = (target - walked) / max(0.0001, seg)
+            return (
+                p0[0] + (p1[0] - p0[0]) * local_t,
+                p0[1] + (p1[1] - p0[1]) * local_t
+            )
+        walked += seg
+    return points[-1]
+
+def get_smooth_path_coord(path_edges, prog):
+    if not path_edges: return None, None
+    if prog <= path_edges[0]['start']: return path_edges[0]['from'].x, path_edges[0]['from'].y
+    if prog >= path_edges[-1]['end']: return path_edges[-1]['to'].x, path_edges[-1]['to'].y
+    
+    idx = 0
+    for i, pe in enumerate(path_edges):
+        if pe['start'] <= prog <= pe['end']:
+            idx = i; break
+            
+    pe = path_edges[idx]
+    t = (prog - pe['start']) / (pe['end'] - pe['start'])
+
+    if 'curve' in pe:
+        pt = point_on_polyline(pe['curve'], t)
+        if pt:
+            return pt
+    
+    p1 = (pe['from'].x, pe['from'].y); p2 = (pe['to'].x, pe['to'].y)
+    
+    if idx > 0: p0 = (path_edges[idx-1]['from'].x, path_edges[idx-1]['from'].y)
+    else:       p0 = (p1[0] - (p2[0]-p1[0]), p1[1] - (p2[1]-p1[1])) 
+        
+    if idx < len(path_edges) - 1: p3 = (path_edges[idx+1]['to'].x, path_edges[idx+1]['to'].y)
+    else:                         p3 = (p2[0] + (p2[0]-p1[0]), p2[1] + (p2[1]-p1[1])) 
+
+    return catmull_rom(p0, p1, p2, p3, t)
+
+def find_closest_road_point(wx, wy, edges):
+    import math
+    best_dist = float('inf')
+    best_pt = None
+    best_edge = None
+    
+    for u, v in edges:
+        dx = v.x - u.x
+        dy = v.y - u.y
+        L2 = dx*dx + dy*dy
+        if L2 < 0.0001:
+            continue
+        L = math.sqrt(L2)
+        
+        t = ((wx - u.x)*dx + (wy - u.y)*dy) / L2
+        
+        min_t = 0.0
+        max_t = 1.0
+        if getattr(u, 'is_roundabout', False):
+            min_t = max(0.0, min(0.5, 140.25 / L))
+        if getattr(v, 'is_roundabout', False):
+            max_t = min(1.0, max(0.5, 1.0 - 140.25 / L))
+            
+        t_clamped = max(min_t, min(max_t, t))
+        px = u.x + t_clamped * dx
+        py = u.y + t_clamped * dy
+        
+        dist = math.hypot(wx - px, wy - py)
+        if dist < best_dist:
+            best_dist = dist
+            best_pt = (px, py)
+            best_edge = (u, v)
+            
+    return best_pt, best_edge

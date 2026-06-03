@@ -1,5 +1,6 @@
 import pygame
 from config import C, RIBBON_H
+from assets.components.component_registry import get_render_fn
 
 class BuildingRenderer:
     def __init__(self, screen, cam):
@@ -7,83 +8,126 @@ class BuildingRenderer:
         self.cam = cam
         self.W = screen.get_width()
         self.H = screen.get_height() - RIBBON_H
+        self._surface_cache = {}
+        self._scaled_cache = {}
 
     def _ws(self, wx, wy):
         return self.cam.world_to_screen(wx, wy)
+
+    def _get_cached_surface(self, b_type):
+        if b_type in self._surface_cache:
+            return self._surface_cache[b_type]
+            
+        render_fn = get_render_fn(b_type)
+        
+        # Buat surface transparan besar untuk menangkap hasil render komponen
+        temp_w, temp_h = 4000, 4000
+        temp_surf = pygame.Surface((temp_w, temp_h), pygame.SRCALPHA)
+        cx, cy = 2000, 2000  # Anchor diletakkan di tengah bawah
+        
+        # Jalankan fungsi render dari registry
+        render_fn(temp_surf, cx, cy)
+        
+        # Crop surface agar pas dengan ukuran aktual gambar (menghapus area kosong)
+        rect = temp_surf.get_bounding_rect()
+        
+        if rect.width == 0 or rect.height == 0:
+            # Fallback jika ternyata render kosong
+            rect = pygame.Rect(cx-1, cy-1, 2, 2)
+            
+        cropped = temp_surf.subsurface(rect).copy()
+        
+        # Hitung titik anchor relatif terhadap gambar yang sudah di-crop
+        anchor_x = cx - rect.x
+        anchor_y = cy - rect.y
+        
+        self._surface_cache[b_type] = {
+            'surface': cropped,
+            'anchor_x': anchor_x,
+            'anchor_y': anchor_y
+        }
+        
+        return self._surface_cache[b_type]
 
     def draw_building(self, b):
         sc  = self.cam.zoom * b['scale']
         if sc < 0.055: return
         sx, sy = self._ws(b['x'], b['y'])
-        margin = max(int(200 * sc), 100)
-        if sx < -margin or sx > self.W + margin: return
-        if sy < RIBBON_H - margin or sy > self.H + RIBBON_H + margin: return
-
-        tp = b['type']; col = b['color']; scr = self.screen
-        def dwin(ox, oy, w, h):
-            px = sx + ox * sc; py = sy + oy * sc
-            pw = max(2, w * sc); ph = max(2, h * sc)
-            if pw < 2 or ph < 2: return
-            pygame.draw.rect(scr, C['win_dark'], (px, py, pw, ph))
-            kw = max(1, pw - 2); kh = max(1, ph - 2)
-            pygame.draw.rect(scr, C['win_light'], (px+1, py+1, kw, kh))
-            if kw > 2 and kh > 2: pygame.draw.line(scr, (220, 240, 255), (px+1, py+ph-2), (px+pw-2, py+1), 1)
-
-        shw_w = max(2, int(160 * sc)); shw_h = max(2, int(40 * sc))
-        shw = pygame.Surface((shw_w, shw_h), pygame.SRCALPHA)
-        pygame.draw.ellipse(shw, (0, 0, 0, 38), (0, 0, shw_w, shw_h)); scr.blit(shw, (sx - shw_w//2, sy - shw_h//2))
-
-        if tp == 'tree':
-            tw = max(2, int(10 * sc)); th = max(2, int(25 * sc))
-            pygame.draw.rect(scr, C['tree_trunk'], (sx - tw//2, sy - th, tw, th))
-            r1 = max(3, int(30 * sc)); r2 = max(2, int(18 * sc))
-            pygame.draw.circle(scr, C['tree_top'], (sx, sy - int(35 * sc)), r1)
-            pygame.draw.circle(scr, (130, 224, 170), (sx - int(6 * sc), sy - int(40 * sc)), r2)
+        
+        # Bianglala (Ferris Wheel) has real-time animation, so it cannot be cached statically.
+        if b['type'].lower() == 'bianglala':
+            temp_w, temp_h = 1300, 800
+            temp_surf = pygame.Surface((temp_w, temp_h), pygame.SRCALPHA)
+            cx, cy = 650, 450
             
-        elif tp == 't1':
-            w = 150; h = 80; bw = max(2, int(w * sc)); bh = max(2, int(h * 0.7 * sc))
-            pygame.draw.rect(scr, C['brick'], (sx - bw//2, sy - bh, bw, bh))
-            for i in range(2):
-                dwin(-w/2+10, -h*0.6+i*30, 16, 16); dwin(-w/2+32, -h*0.6+i*30, 16, 16)
-                dwin(w/2-26, -h*0.6+i*30, 16, 16); dwin(w/2-48, -h*0.6+i*30, 16, 16)
-            mw = max(2, int(70 * sc)); mh = max(2, int(h * sc))
-            pygame.draw.rect(scr, (169, 50, 38), (sx - int(35 * sc), sy - mh, mw, mh))
-            dw = max(2, int(50 * sc)); dh = max(2, int(h * 0.3 * sc))
-            pygame.draw.rect(scr, C['conc'], (sx - int(25 * sc), sy - dh, dw, dh))
-            dw2 = max(2, int(20 * sc)); dh2 = max(2, int(h * 0.25 * sc))
-            pygame.draw.rect(scr, (92, 42, 22), (sx - int(10 * sc), sy - dh2, dw2, dh2))
-            dwin(-18, -h*0.7, 14, 14); dwin(4, -h*0.7, 14, 14)
-            roof1 = [(sx - int(40*sc), sy - mh), (sx, sy - mh - int(35*sc)), (sx + int(40*sc), sy - mh)]
-            pygame.draw.polygon(scr, C['conc'], roof1)
-            roof2 = [(sx - int(30*sc), sy - mh), (sx, sy - mh - int(28*sc)), (sx + int(30*sc), sy - mh)]
-            pygame.draw.polygon(scr, C['roof'], roof2)
+            render_fn = get_render_fn(b['type'])
+            render_fn(temp_surf, cx, cy)
             
-        elif tp == 't2':
-            w = 100; h = 120; bw = max(2, int(w * sc)); bh = max(2, int(h * sc)); bx = sx - bw//2; by = sy - bh
-            pygame.draw.rect(scr, col, (bx, by, bw, bh))
-            for i in range(1, 4):
-                fy = by + int((i*30 - 4)*sc); fh = max(1, int(4*sc))
-                dc = (max(0, col[0]-20), max(0, col[1]-20), max(0, col[2]-20))
-                pygame.draw.rect(scr, dc, (bx, fy, bw, fh))
-            ew = max(2, int(30 * sc)); eh = max(2, int(25 * sc))
-            pygame.draw.rect(scr, (44, 62, 80), (sx - int(15 * sc), sy - eh, ew, eh))
-            for r in range(3):
-                for c in range(3):
-                    if r == 2 and c == 1: continue
-                    dwin(-w/2+10+c*30, -h+10+r*35, 18, 18)
-            pw = bw + int(10 * sc); ph = max(1, int(8 * sc))
-            pygame.draw.rect(scr, (127, 140, 141), (bx - int(5*sc), by - int(8*sc), pw, ph))
+            # Use fixed bounding box crop to avoid expensive get_bounding_rect() call
+            rect = pygame.Rect(cx - 580, cy - 405, 1160, 700)
+            cropped = temp_surf.subsurface(rect)
             
-        elif tp == 't3':
-            w = 80; h = 150; bw = max(2, int(w * sc)); bh = max(2, int(h * sc)); bx = sx - bw//2; by = sy - bh
-            pygame.draw.rect(scr, (205, 211, 216), (bx, by, bw, bh))
-            gw = max(1, bw - int(12 * sc)); gh = max(1, bh - int(12 * sc)); gx = bx + int(6 * sc); gy = by + int(6 * sc)
-            if gw > 2 and gh > 2:
-                pygame.draw.rect(scr, (93, 173, 226), (gx, gy, gw, gh))
-                if sc > 0.15:
-                    for i in range(1, 3):
-                        lx = gx + int(i * gw / 3); pygame.draw.line(scr, (41, 128, 185), (lx, gy), (lx, gy + gh), max(1, int(1.5*sc)))
-                    for i in range(1, 8):
-                        ly = gy + int(i * gh / 8); pygame.draw.line(scr, (41, 128, 185), (gx, ly), (gx + gw, ly), max(1, int(1.5*sc)))
-            ew = max(2, int(24 * sc)); eh = max(2, int(25 * sc))
-            pygame.draw.rect(scr, (44, 62, 80), (sx - int(12 * sc), sy - eh, ew, eh))
+            anchor_x = 580
+            anchor_y = 405
+            
+            scaled_w = max(1, int(1160 * sc))
+            scaled_h = max(1, int(700 * sc))
+            
+            draw_x = sx - int(anchor_x * sc)
+            draw_y = sy - int(anchor_y * sc)
+            
+            margin = 100
+            if (draw_x > self.W + margin or draw_x + scaled_w < -margin or
+                draw_y > self.H + RIBBON_H + margin or draw_y + scaled_h < RIBBON_H - margin):
+                return
+                
+            if abs(sc - 1.0) < 0.001:
+                scaled_surf = cropped
+            else:
+                scaled_surf = pygame.transform.smoothscale(cropped, (scaled_w, scaled_h))
+                
+            self.screen.blit(scaled_surf, (draw_x, draw_y))
+            return
+
+        # Ambil surface komponen yang sudah di-cache
+        cached = self._get_cached_surface(b['type'])
+        base_surf = cached['surface']
+        anchor_x = cached['anchor_x']
+        anchor_y = cached['anchor_y']
+        
+        # Hitung ukuran gambar setelah diskalakan zoom
+        scaled_w = max(1, int(base_surf.get_width() * sc))
+        scaled_h = max(1, int(base_surf.get_height() * sc))
+        
+        footprint_offset_y = int(b['radius'] * self.cam.zoom)
+        
+        # Gambar bayangan bawah (shadow) - skip jika tipe bangunan adalah kavling (alas tanah) (DINONAKTIFKAN ATAS PERMINTAAN USER)
+        # if not b['type'].lower().startswith('kavling'):
+        #     shw_w = max(2, int(160 * sc)); shw_h = max(2, int(40 * sc))
+        #     shw = pygame.Surface((shw_w, shw_h), pygame.SRCALPHA)
+        #     pygame.draw.ellipse(shw, (0, 0, 0, 38), (0, 0, shw_w, shw_h))
+        #     self.screen.blit(shw, (sx - shw_w//2, (sy + footprint_offset_y) - shw_h//2))
+        
+        # Posisi gambar akhir
+        draw_x = sx - int(anchor_x * sc)
+        draw_y = sy - int(anchor_y * sc)
+        
+        # Optimasi Culling: jangan render jika di luar layar
+        margin = 100
+        if draw_x > self.W + margin or draw_x + scaled_w < -margin: return
+        if draw_y > self.H + RIBBON_H + margin or draw_y + scaled_h < RIBBON_H - margin: return
+        
+        # Skalakan surface dan tampilkan ke layar. Cache per zoom kecil supaya
+        # generate map padat tetap ringan saat kamera diam atau bergerak pelan.
+        if abs(sc - 1.0) < 0.001:
+            scaled_surf = base_surf
+        else:
+            cache_key = (b['type'], round(sc, 2))
+            scaled_surf = self._scaled_cache.get(cache_key)
+            if scaled_surf is None or scaled_surf.get_size() != (scaled_w, scaled_h):
+                if len(self._scaled_cache) > 220:
+                    self._scaled_cache.clear()
+                scaled_surf = pygame.transform.smoothscale(base_surf, (scaled_w, scaled_h))
+                self._scaled_cache[cache_key] = scaled_surf
+            
+        self.screen.blit(scaled_surf, (draw_x, draw_y))
