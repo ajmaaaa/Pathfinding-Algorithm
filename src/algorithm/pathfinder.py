@@ -89,49 +89,32 @@ def _prepare_drive_curve(path, edge, i, edge_curves, roundabout_radius, blend_ra
 
     return _clip_straight_line(curve, r_start, r_end)
 
-def run_astar_anim(start, end, nodes, edge_curves=None, roundabout_radius=140.25):
-    t0 = time.perf_counter()
-    for n in nodes: n.eval_step = float('inf'); n.disc_step = float('inf')
-
-    open_heap = MinHeap()
-    open_set_tracker = set([start])
-    
-    g = {n: float('inf') for n in nodes}
-    f = {n: float('inf') for n in nodes}
-    came_from = {}
-    came_from_edge = {}
-    
-    g[start] = 0
-    f[start] = euclidean_distance(start, end)
-    start.disc_step = 0.0
-    open_heap.put(start, f[start])
-
-    search_edges_anim = []
-    final_path_anim = []
-    found = False
-
-    SEARCH_SPEED_FACTOR = 200.0  # Kecepatan rambat gelombang pencarian (piksel per step)
-
+def forward_search(open_heap, open_set_tracker, visited_self, visited_other, open_set_tracker_other, came_from, came_from_edge, g, f, goal, edge_curves, search_edges_anim, SEARCH_SPEED_FACTOR, roundabout_radius=140.25):
     while not open_heap.empty():
         cur = open_heap.get()
         if cur not in open_set_tracker:
             continue
-            
         open_set_tracker.remove(cur)
         cur.eval_step = cur.disc_step
-
-        if cur is end: 
-            found = True; break
-
+        visited_self.add(cur)
+        
+        if cur in visited_other or cur in open_set_tracker_other:
+            return cur
+            
         for e in cur.edges:
             nb = e[1] if e[0] is cur else e[0]
+            if nb in visited_self:
+                continue
             curve = _edge_curve(e, cur, edge_curves)
             edge_dist = polyline_length(curve)
             tg = g[cur] + edge_dist
-            optimal = tg < g[nb]
-
-            if optimal:
-                # Buat kurva pencarian (search path) melengkung untuk bundaran
+            
+            # Check if this neighbor has already been reached by the other search
+            if nb in visited_other or nb in open_set_tracker_other:
+                came_from[nb] = cur
+                came_from_edge[nb] = e
+                g[nb] = tg
+                
                 search_curve = list(curve)
                 r_start = 140.25 if cur.is_roundabout else 0.0
                 r_end = 140.25 if nb.is_roundabout else 0.0
@@ -146,35 +129,220 @@ def run_astar_anim(start, end, nodes, edge_curves=None, roundabout_radius=140.25
                         incoming_curve = _clip_straight_line(incoming_raw, r_in_start, 140.25)
                         turn_curve = _roundabout_turn_curve(cur, incoming_curve[-2:], search_curve[:2], roundabout_radius)
                         search_curve = turn_curve + search_curve[1:]
-
+                        
                 dur = edge_dist / SEARCH_SPEED_FACTOR
                 search_edges_anim.append({
                     'from': cur, 'to': nb, 'target': nb, 
                     'start': cur.disc_step, 'end': cur.disc_step + dur, 'is_optimal': True,
                     'curve': search_curve
                 })
-
+                if nb.disc_step == float('inf') or (cur.disc_step + dur) < nb.disc_step: 
+                    nb.disc_step = cur.disc_step + dur
+                return nb
+            
+            if tg < g[nb]:
+                search_curve = list(curve)
+                r_start = 140.25 if cur.is_roundabout else 0.0
+                r_end = 140.25 if nb.is_roundabout else 0.0
+                search_curve = _clip_straight_line(curve, r_start, r_end)
+                
+                if cur.is_roundabout:
+                    parent = came_from.get(cur)
+                    e_in = came_from_edge.get(cur)
+                    if parent is not None and e_in is not None:
+                        incoming_raw = _edge_curve(e_in, parent, edge_curves)
+                        r_in_start = 140.25 if parent.is_roundabout else 0.0
+                        incoming_curve = _clip_straight_line(incoming_raw, r_in_start, 140.25)
+                        turn_curve = _roundabout_turn_curve(cur, incoming_curve[-2:], search_curve[:2], roundabout_radius)
+                        search_curve = turn_curve + search_curve[1:]
+                        
+                dur = edge_dist / SEARCH_SPEED_FACTOR
+                search_edges_anim.append({
+                    'from': cur, 'to': nb, 'target': nb, 
+                    'start': cur.disc_step, 'end': cur.disc_step + dur, 'is_optimal': True,
+                    'curve': search_curve
+                })
+                
                 came_from[nb] = cur
                 came_from_edge[nb] = e
                 g[nb] = tg
-                f[nb] = tg + euclidean_distance(nb, end)
+                f[nb] = tg + euclidean_distance(nb, goal)
                 open_set_tracker.add(nb)
                 open_heap.put(nb, f[nb])
                 if nb.disc_step == float('inf') or (cur.disc_step + dur) < nb.disc_step: 
                     nb.disc_step = cur.disc_step + dur
+        return None
+    return None
+
+def backward_search(open_heap, open_set_tracker, visited_self, visited_other, open_set_tracker_other, came_from, came_from_edge, g, f, goal, edge_curves, search_edges_anim, SEARCH_SPEED_FACTOR, roundabout_radius=140.25):
+    while not open_heap.empty():
+        cur = open_heap.get()
+        if cur not in open_set_tracker:
+            continue
+        open_set_tracker.remove(cur)
+        cur.eval_step = cur.disc_step
+        visited_self.add(cur)
+        
+        if cur in visited_other or cur in open_set_tracker_other:
+            return cur
+            
+        for e in cur.edges:
+            nb = e[1] if e[0] is cur else e[0]
+            if nb in visited_self:
+                continue
+            curve = _edge_curve(e, cur, edge_curves)
+            edge_dist = polyline_length(curve)
+            tg = g[cur] + edge_dist
+            
+            # Check if this neighbor has already been reached by the other search
+            if nb in visited_other or nb in open_set_tracker_other:
+                came_from[nb] = cur
+                came_from_edge[nb] = e
+                g[nb] = tg
+                
+                search_curve = list(curve)
+                r_start = 140.25 if cur.is_roundabout else 0.0
+                r_end = 140.25 if nb.is_roundabout else 0.0
+                search_curve = _clip_straight_line(curve, r_start, r_end)
+                
+                if cur.is_roundabout:
+                    parent = came_from.get(cur)
+                    e_in = came_from_edge.get(cur)
+                    if parent is not None and e_in is not None:
+                        incoming_raw = _edge_curve(e_in, parent, edge_curves)
+                        r_in_start = 140.25 if parent.is_roundabout else 0.0
+                        incoming_curve = _clip_straight_line(incoming_raw, r_in_start, 140.25)
+                        turn_curve = _roundabout_turn_curve(cur, incoming_curve[-2:], search_curve[:2], roundabout_radius)
+                        search_curve = turn_curve + search_curve[1:]
+                        
+                dur = edge_dist / SEARCH_SPEED_FACTOR
+                search_edges_anim.append({
+                    'from': cur, 'to': nb, 'target': nb, 
+                    'start': cur.disc_step, 'end': cur.disc_step + dur, 'is_optimal': True,
+                    'curve': search_curve
+                })
+                if nb.disc_step == float('inf') or (cur.disc_step + dur) < nb.disc_step: 
+                    nb.disc_step = cur.disc_step + dur
+                return nb
+            
+            if tg < g[nb]:
+                search_curve = list(curve)
+                r_start = 140.25 if cur.is_roundabout else 0.0
+                r_end = 140.25 if nb.is_roundabout else 0.0
+                search_curve = _clip_straight_line(curve, r_start, r_end)
+                
+                if cur.is_roundabout:
+                    parent = came_from.get(cur)
+                    e_in = came_from_edge.get(cur)
+                    if parent is not None and e_in is not None:
+                        incoming_raw = _edge_curve(e_in, parent, edge_curves)
+                        r_in_start = 140.25 if parent.is_roundabout else 0.0
+                        incoming_curve = _clip_straight_line(incoming_raw, r_in_start, 140.25)
+                        turn_curve = _roundabout_turn_curve(cur, incoming_curve[-2:], search_curve[:2], roundabout_radius)
+                        search_curve = turn_curve + search_curve[1:]
+                        
+                dur = edge_dist / SEARCH_SPEED_FACTOR
+                search_edges_anim.append({
+                    'from': cur, 'to': nb, 'target': nb, 
+                    'start': cur.disc_step, 'end': cur.disc_step + dur, 'is_optimal': True,
+                    'curve': search_curve
+                })
+                
+                came_from[nb] = cur
+                came_from_edge[nb] = e
+                g[nb] = tg
+                f[nb] = tg + euclidean_distance(nb, goal)
+                open_set_tracker.add(nb)
+                open_heap.put(nb, f[nb])
+                if nb.disc_step == float('inf') or (cur.disc_step + dur) < nb.disc_step: 
+                    nb.disc_step = cur.disc_step + dur
+        return None
+    return None
+
+def run_astar_anim(start, end, nodes, edge_curves=None, roundabout_radius=140.25):
+    t0 = time.perf_counter()
+    for n in nodes: n.eval_step = float('inf'); n.disc_step = float('inf')
+
+    open_heap_f = MinHeap()
+    open_set_tracker_f = set([start])
+    visited_f = set()
+    g_f = {n: float('inf') for n in nodes}
+    f_f = {n: float('inf') for n in nodes}
+    came_from_f = {}
+    came_from_edge_f = {}
+    
+    g_f[start] = 0
+    f_f[start] = euclidean_distance(start, end)
+    start.disc_step = 0.0
+    open_heap_f.put(start, f_f[start])
+
+    open_heap_b = MinHeap()
+    open_set_tracker_b = set([end])
+    visited_b = set()
+    g_b = {n: float('inf') for n in nodes}
+    f_b = {n: float('inf') for n in nodes}
+    came_from_b = {}
+    came_from_edge_b = {}
+    
+    g_b[end] = 0
+    f_b[end] = euclidean_distance(end, start)
+    end.disc_step = 0.0
+    open_heap_b.put(end, f_b[end])
+
+    search_edges_anim = []
+    final_path_anim = []
+    found = False
+    meeting_node = None
+
+    SEARCH_SPEED_FACTOR = 200.0  # Kecepatan rambat gelombang pencarian (piksel per step)
+
+    while not open_heap_f.empty() and not open_heap_b.empty():
+        meeting_node = forward_search(
+            open_heap_f, open_set_tracker_f, visited_f, visited_b, open_set_tracker_b,
+            came_from_f, came_from_edge_f, g_f, f_f, end,
+            edge_curves, search_edges_anim, SEARCH_SPEED_FACTOR, roundabout_radius
+        )
+        if meeting_node is not None:
+            found = True
+            break
+
+        meeting_node = backward_search(
+            open_heap_b, open_set_tracker_b, visited_b, visited_f, open_set_tracker_f,
+            came_from_b, came_from_edge_b, g_b, f_b, start,
+            edge_curves, search_edges_anim, SEARCH_SPEED_FACTOR, roundabout_radius
+        )
+        if meeting_node is not None:
+            found = True
+            break
 
     ms = (time.perf_counter()-t0)*1000
 
     max_search_step = max([se['end'] for se in search_edges_anim] + [0.0])
 
-    if not found: return search_edges_anim, [], 0.0, ms, max_search_step
+    if not found or meeting_node is None: return search_edges_anim, [], 0.0, ms, max_search_step
 
-    path = []; path_edges = []; cur_node = end
-    while cur_node:
-        path.insert(0, cur_node)
-        if cur_node in came_from_edge:
-            path_edges.insert(0, came_from_edge[cur_node])
-        cur_node = came_from.get(cur_node)
+    path_f = []
+    path_edges_f = []
+    curr = meeting_node
+    while curr is not None:
+        path_f.append(curr)
+        if curr in came_from_edge_f:
+            path_edges_f.append(came_from_edge_f[curr])
+        curr = came_from_f.get(curr)
+    path_f.reverse()
+    path_edges_f.reverse()
+
+    path_b = []
+    path_edges_b = []
+    curr = meeting_node
+    while curr is not None:
+        path_b.append(curr)
+        if curr in came_from_edge_b:
+            path_edges_b.append(came_from_edge_b[curr])
+        curr = came_from_b.get(curr)
+
+    path = path_f + path_b[1:]
+    path_edges = path_edges_f + path_edges_b
 
     dist = 0.0; p_step = max_search_step + 1
     CAR_SPEED_FACTOR = 24.0  
