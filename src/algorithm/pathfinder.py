@@ -2,8 +2,94 @@ import math
 import time
 from src.algorithm.heuristic import euclidean_distance
 from src.algorithm.min_heap import MinHeap
+from src.core.geometry import cubic_bezier, make_curved_edge_points, polyline_length
 
-def run_astar_anim(start, end, nodes):
+def _edge_curve(edge, from_node, edge_curves):
+    curve = edge_curves.get(id(edge)) if edge_curves else None
+    if not curve:
+        # Jalan di peta ini adalah garis lurus (bend=0.0), jadi gunakan
+        # garis lurus agar mobil tidak keluar dari aspal
+        to_node = edge[1] if edge[0] is from_node else edge[0]
+        return [(from_node.x, from_node.y), (to_node.x, to_node.y)]
+    if edge[0] is from_node:
+        return curve[:]
+    return list(reversed(curve))
+
+def _clip_straight_line(curve, r_start, r_end):
+    if len(curve) < 2:
+        return curve
+    p0, p1 = curve[0], curve[-1]
+    dx = p1[0] - p0[0]
+    dy = p1[1] - p0[1]
+    L = math.hypot(dx, dy)
+    if L <= 0.0001:
+        return curve
+
+    if L > r_start + r_end:
+        t_start = r_start / L
+        t_end = 1.0 - (r_end / L)
+    else:
+        if r_start + r_end > 0:
+            split_t = r_start / (r_start + r_end)
+        else:
+            split_t = 0.5
+        t_start = max(0.0, split_t - 0.01)
+        t_end = min(1.0, split_t + 0.01)
+
+    pt_start = (p0[0] + dx * t_start, p0[1] + dy * t_start)
+    pt_end = (p0[0] + dx * t_end, p0[1] + dy * t_end)
+    return [pt_start, pt_end]
+
+def _unit(dx, dy):
+    length = math.hypot(dx, dy)
+    if length <= 0.0001:
+        return 1.0, 0.0
+    return dx / length, dy / length
+
+def _sample_bezier(p0, c1, c2, p3, steps=24):
+    return [cubic_bezier(p0, c1, c2, p3, i / float(steps)) for i in range(steps + 1)]
+
+def _arc_points(rb_node, start_ang, end_ang, radius, steps=24):
+    cx, cy = rb_node.x, rb_node.y
+    delta = (end_ang - start_ang + math.pi * 3) % (math.pi * 2) - math.pi
+    if abs(delta) < 0.28:
+        delta = 0.28 if delta >= 0 else -0.28
+
+    pts = []
+    for i in range(steps + 1):
+        a = start_ang + delta * (i / steps)
+        # Squish sumbu y sebesar 0.5 agar berbentuk elips isometrik
+        pts.append((cx + math.cos(a) * radius, cy + math.sin(a) * radius * 0.5))
+    return pts
+
+def _arc_around_roundabout(rb_node, start_pt, end_pt, radius, steps=24):
+    cx, cy = rb_node.x, rb_node.y
+    # Gunakan sudut eccentric anomaly agar elips isometrik terhubung sempurna ke jalan diagonal
+    a1 = math.atan2((start_pt[1] - cy) / 0.5, start_pt[0] - cx)
+    a2 = math.atan2((end_pt[1] - cy) / 0.5, end_pt[0] - cx)
+    return _arc_points(rb_node, a1, a2, radius, steps)
+
+def _roundabout_turn_curve(rb_node, incoming, outgoing, radius):
+    return _arc_around_roundabout(rb_node, incoming[-1], outgoing[0], radius)
+
+def _prepare_drive_curve(path, edge, i, edge_curves, roundabout_radius, blend_radius=None):
+    curve = _edge_curve(edge, path[i - 1], edge_curves)
+    r_start = 0.0
+    # Gunakan radius pemotongan presisi 140.25 untuk persimpangan elips bundaran isometrik
+    if path[i - 1].is_roundabout:
+        r_start = 140.25
+    elif i > 1:
+        r_start = 60.0
+
+    r_end = 0.0
+    if path[i].is_roundabout:
+        r_end = 140.25
+    elif i < len(path) - 1:
+        r_end = 60.0
+
+    return _clip_straight_line(curve, r_start, r_end)
+
+def run_astar_anim(start, end, nodes, edge_curves=None, roundabout_radius=140.25):
     t0 = time.perf_counter()
     for n in nodes: n.eval_step = float('inf'); n.disc_step = float('inf')
 
@@ -13,15 +99,18 @@ def run_astar_anim(start, end, nodes):
     g = {n: float('inf') for n in nodes}
     f = {n: float('inf') for n in nodes}
     came_from = {}
+    came_from_edge = {}
     
     g[start] = 0
     f[start] = euclidean_distance(start, end)
-    start.disc_step = 0
+    start.disc_step = 0.0
     open_heap.put(start, f[start])
 
     search_edges_anim = []
     final_path_anim = []
-    step = 0; found = False
+    found = False
+
+    SEARCH_SPEED_FACTOR = 200.0  # Kecepatan rambat gelombang pencarian (piksel per step)
 
     while not open_heap.empty():
         cur = open_heap.get()
@@ -29,55 +118,125 @@ def run_astar_anim(start, end, nodes):
             continue
             
         open_set_tracker.remove(cur)
-        cur.eval_step = step
+        cur.eval_step = cur.disc_step
 
         if cur is end: 
             found = True; break
 
-        advanced = False
         for e in cur.edges:
             nb = e[1] if e[0] is cur else e[0]
-            tg = g[cur] + math.hypot(cur.x-nb.x, cur.y-nb.y)
+            curve = _edge_curve(e, cur, edge_curves)
+            edge_dist = polyline_length(curve)
+            tg = g[cur] + edge_dist
             optimal = tg < g[nb]
 
-            if optimal or nb.eval_step == float('inf'):
+            if optimal:
+                # Buat kurva pencarian (search path) melengkung untuk bundaran
+                search_curve = list(curve)
+                r_start = 140.25 if cur.is_roundabout else 0.0
+                r_end = 140.25 if nb.is_roundabout else 0.0
+                search_curve = _clip_straight_line(curve, r_start, r_end)
+                
+                if cur.is_roundabout:
+                    parent = came_from.get(cur)
+                    e_in = came_from_edge.get(cur)
+                    if parent is not None and e_in is not None:
+                        incoming_raw = _edge_curve(e_in, parent, edge_curves)
+                        r_in_start = 140.25 if parent.is_roundabout else 0.0
+                        incoming_curve = _clip_straight_line(incoming_raw, r_in_start, 140.25)
+                        turn_curve = _roundabout_turn_curve(cur, incoming_curve[-2:], search_curve[:2], roundabout_radius)
+                        search_curve = turn_curve + search_curve[1:]
+
+                dur = edge_dist / SEARCH_SPEED_FACTOR
                 search_edges_anim.append({
                     'from': cur, 'to': nb, 'target': nb, 
-                    'start': step, 'end': step + 1, 'is_optimal': optimal
+                    'start': cur.disc_step, 'end': cur.disc_step + dur, 'is_optimal': True,
+                    'curve': search_curve
                 })
-                advanced = True
 
-            if optimal:
                 came_from[nb] = cur
+                came_from_edge[nb] = e
                 g[nb] = tg
                 f[nb] = tg + euclidean_distance(nb, end)
                 open_set_tracker.add(nb)
                 open_heap.put(nb, f[nb])
-                if nb.disc_step == float('inf'): 
-                    nb.disc_step = step + 1
-
-        if advanced: step += 1
-        else: step += 0.5
+                if nb.disc_step == float('inf') or (cur.disc_step + dur) < nb.disc_step: 
+                    nb.disc_step = cur.disc_step + dur
 
     ms = (time.perf_counter()-t0)*1000
 
-    if not found: return search_edges_anim, [], 0.0, ms, step
+    max_search_step = max([se['end'] for se in search_edges_anim] + [0.0])
 
-    max_search_step = step; path = []; cur_node = end
+    if not found: return search_edges_anim, [], 0.0, ms, max_search_step
+
+    path = []; path_edges = []; cur_node = end
     while cur_node:
         path.insert(0, cur_node)
+        if cur_node in came_from_edge:
+            path_edges.insert(0, came_from_edge[cur_node])
         cur_node = came_from.get(cur_node)
 
     dist = 0.0; p_step = max_search_step + 1
-    CAR_SPEED_FACTOR = 25.0  
-    
+    CAR_SPEED_FACTOR = 24.0  
+    TURN_SPEED_FACTOR = 20.0
+    ROUNDABOUT_SPEED_FACTOR = 18.0
     for i in range(1, len(path)):
-        edge_dist = math.hypot(path[i].x-path[i-1].x, path[i].y-path[i-1].y)
+        curve = _prepare_drive_curve(path, path_edges[i - 1], i, edge_curves, roundabout_radius, roundabout_radius)
+        edge_dist = polyline_length(curve)
         dist += edge_dist
-        time_cost = max(0.5, edge_dist / CAR_SPEED_FACTOR) 
+        time_cost = max(0.05, edge_dist / CAR_SPEED_FACTOR) 
         
-        final_path_anim.append({'from': path[i-1], 'to': path[i], 'start': p_step, 'end': p_step + time_cost})
+        final_path_anim.append({'from': path[i-1], 'to': path[i], 'start': p_step, 'end': p_step + time_cost, 'curve': curve})
         p_step += time_cost
+
+        if i < len(path) - 1:
+            if path[i].is_roundabout:
+                next_curve = _prepare_drive_curve(
+                    path,
+                    path_edges[i],
+                    i + 1,
+                    edge_curves,
+                    roundabout_radius,
+                    roundabout_radius
+                )
+                turn_curve = _roundabout_turn_curve(path[i], curve[-2:], next_curve[:2], roundabout_radius)
+                turn_dist = polyline_length(turn_curve)
+                dist += turn_dist
+                turn_cost = max(0.05, turn_dist / ROUNDABOUT_SPEED_FACTOR)
+            else:
+                next_curve = _prepare_drive_curve(path, path_edges[i], i + 1, edge_curves, roundabout_radius, roundabout_radius)
+                
+                p0 = curve[-1]
+                p3 = next_curve[0]
+                
+                dx1 = curve[-1][0] - curve[-2][0]
+                dy1 = curve[-1][1] - curve[-2][1]
+                len1 = max(0.0001, math.hypot(dx1, dy1))
+                t1x, t1y = dx1/len1, dy1/len1
+                
+                dx2 = next_curve[1][0] - next_curve[0][0]
+                dy2 = next_curve[1][1] - next_curve[0][1]
+                len2 = max(0.0001, math.hypot(dx2, dy2))
+                t2x, t2y = dx2/len2, dy2/len2
+                
+                dist_pts = math.hypot(p3[0] - p0[0], p3[1] - p0[1])
+                
+                dist_to_int1 = math.hypot(path[i].x - p0[0], path[i].y - p0[1])
+                dist_to_int2 = math.hypot(path[i].x - p3[0], path[i].y - p3[1])
+                
+                handle1 = min(dist_pts * 0.45, dist_to_int1 * 0.5)
+                handle2 = min(dist_pts * 0.45, dist_to_int2 * 0.5)
+                
+                p1 = (p0[0] + t1x * handle1, p0[1] + t1y * handle1)
+                p2 = (p3[0] - t2x * handle2, p3[1] - t2y * handle2)
+                
+                turn_curve = _sample_bezier(p0, p1, p2, p3, steps=24)
+                turn_dist = polyline_length(turn_curve)
+                dist += turn_dist
+                turn_cost = max(0.05, turn_dist / TURN_SPEED_FACTOR)
+                
+            final_path_anim.append({'from': path[i], 'to': path[i], 'start': p_step, 'end': p_step + turn_cost, 'curve': turn_curve})
+            p_step += turn_cost
 
     total_steps = p_step + 2
     return search_edges_anim, final_path_anim, dist, ms, total_steps
