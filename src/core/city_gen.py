@@ -33,7 +33,7 @@ from assets.components import (
 
 ISO_X = 200.0          # screen px per grid-column unit
 ISO_Y = 100.0          # screen px per grid-row unit
-ROAD_HALF_WIDTH = 90.0 # half the road body width in px (adjusted to match actual rendered road border shadow width)
+ROAD_HALF_WIDTH = 80.0 # half the road body width in px (adjusted to match actual rendered road border shadow width)
 
 TREE_TARGET_RANGE = (28, 48)
 LIGHT_TARGET_RANGE = (8, 14)
@@ -411,26 +411,7 @@ class MapGen:
             to_merge = []
             for n in nodes_list:
                 if n is not rb and math.hypot(n.x - rb.x, n.y - rb.y) < 180.0:
-                    dx = n.x - rb.x
-                    dy = n.y - rb.y
-                    # Hanya gabungkan jika node sejajar secara isometrik (axis diagonal) dengan pusat bundaran
-                    if abs(2.0 * dy - dx) < 10.0 or abs(2.0 * dy + dx) < 10.0:
-                        # Verifikasi agar node yang menghubungkan jalan samping tegak lurus tidak ikut tergeser (menjadi miring)
-                        all_collinear = True
-                        for edge in n.edges:
-                            other = edge[1] if edge[0] is n else edge[0]
-                            if other is rb:
-                                continue
-                            dx1 = other.x - n.x
-                            dy1 = other.y - n.y
-                            dx2 = n.x - rb.x
-                            dy2 = n.y - rb.y
-                            cross = dx1 * dy2 - dy1 * dx2
-                            if abs(cross) > 2000.0:
-                                all_collinear = False
-                                break
-                        if all_collinear:
-                            to_merge.append(n)
+                    to_merge.append(n)
             for n_close in to_merge:
                 if n_close not in nodes_list:
                     continue
