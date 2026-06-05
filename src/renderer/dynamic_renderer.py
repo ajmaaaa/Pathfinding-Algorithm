@@ -5,6 +5,7 @@ from config import C, RIBBON_H, RW
 from src.core.geometry import get_smooth_path_coord, point_on_polyline
 
 class DynamicRenderer:
+    #_init
     def __init__(self, screen, cam):
         self.screen = screen
         self.cam = cam
@@ -111,6 +112,7 @@ class DynamicRenderer:
             temp.set_alpha(alpha)
         surface.blit(temp, (int(min_x), int(min_y)))
 
+        #draw_car
     def draw_car(self, x, y, angle):
         sc = self.cam.zoom
         if sc < 0.08: return
@@ -474,6 +476,7 @@ class DynamicRenderer:
                 pygame.draw.circle(self.screen, elem['color'], (int(cx), int(cy)), int(rad))
                 pygame.draw.circle(self.screen, (0, 0, 0), (int(cx), int(cy)), int(rad), 1)
 
+    #get_car_transform
     def get_car_transform(self, path_edges, progress):
         if not path_edges or progress <= 0 or progress < path_edges[0]['start']:
             self.car_last_prog = progress
