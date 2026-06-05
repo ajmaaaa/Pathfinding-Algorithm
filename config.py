@@ -1,6 +1,52 @@
 # ═══════════════════════════════════════════════════════
 #  KONFIGURASI GLOBAL
 # ═══════════════════════════════════════════════════════
+import subprocess
+import threading
+
+_current_theme = 'dark'
+_theme_lock = threading.Lock()
+
+def _check_theme_worker():
+    global _current_theme
+    theme = 'dark'
+    try:
+        # Check GNOME color scheme
+        res = subprocess.run(['gsettings', 'get', 'org.gnome.desktop.interface', 'color-scheme'],
+                             capture_output=True, text=True, timeout=1.0)
+        if res.returncode == 0:
+            val = res.stdout.strip().strip("'").strip('"')
+            if 'dark' in val:
+                theme = 'dark'
+            elif 'light' in val:
+                theme = 'light'
+            else:
+                # Check GTK theme if color-scheme is default/unknown
+                res2 = subprocess.run(['gsettings', 'get', 'org.gnome.desktop.interface', 'gtk-theme'],
+                                      capture_output=True, text=True, timeout=1.0)
+                if res2.returncode == 0:
+                    val2 = res2.stdout.strip().lower().strip("'").strip('"')
+                    if 'dark' in val2:
+                        theme = 'dark'
+                    else:
+                        theme = 'light'
+    except Exception:
+        pass
+        
+    with _theme_lock:
+        _current_theme = theme
+
+# Run initial check synchronously at import
+_check_theme_worker()
+
+def start_theme_check_thread():
+    t = threading.Thread(target=_check_theme_worker, daemon=True)
+    t.start()
+
+def get_system_theme():
+    with _theme_lock:
+        return _current_theme
+
 SCREEN_W  = 1280
 SCREEN_H  = 800
 RIBBON_H  = 88      
