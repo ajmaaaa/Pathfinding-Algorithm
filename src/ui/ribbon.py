@@ -151,3 +151,51 @@ class MiniButton:
 
         cx = self.rect.x + self.rect.w // 2; cy = self.rect.y + self.rect.h // 2
         draw_vector_icon(surf, self.icon_name, cx, cy, txt)
+
+class Slider:
+    def __init__(self, x, y, w, h):
+        self.rect = pygame.Rect(x, y, w, h)
+        self.disabled = True
+        self.val = 0.0; self.max_val = 100.0; self.dragging = False
+
+    def draw(self, surf, theme='dark'):
+        ty = self.rect.y + self.rect.h//2 - 2
+        track_col = (51, 65, 85) if theme == 'dark' else (241, 245, 249)
+        pygame.draw.rect(surf, track_col, (self.rect.x, ty - 2, self.rect.w, 6), border_radius=3)
+        pct = 0 if self.max_val == 0 else min(1.0, max(0.0, self.val / self.max_val))
+        tx = self.rect.x + int(pct * self.rect.w)
+        
+        if not self.disabled and tx > self.rect.x:
+            fill_col = (96, 165, 250) if theme == 'dark' else (59, 130, 246)
+            pygame.draw.rect(surf, fill_col, (self.rect.x, ty - 2, tx - self.rect.x, 6), border_radius=3)
+            
+        col = (100, 116, 139) if self.disabled else ((96, 165, 250) if theme == 'dark' else (37, 99, 235))
+        if not self.disabled:
+            shadow_s = pygame.Surface((20, 20), pygame.SRCALPHA)
+            glow_c = (96, 165, 250, 40) if theme == 'dark' else (37, 99, 235, 30)
+            pygame.draw.circle(shadow_s, glow_c, (10, 10), 10)
+            surf.blit(shadow_s, (tx - 10, ty + 2 - 10))
+            
+        thumb_bg = (30, 41, 59) if theme == 'dark' else (255, 255, 255)
+        pygame.draw.circle(surf, thumb_bg, (tx, ty + 2), 8)
+        pygame.draw.circle(surf, col, (tx, ty + 2), 8, 2)
+        if not self.disabled:
+            pygame.draw.circle(surf, col, (tx, ty + 2), 3)
+
+    def handle_mouse(self, mx, my, ev_type):
+        if self.disabled: return False
+        ty = self.rect.y + self.rect.h//2
+        pct = 0 if self.max_val == 0 else self.val / self.max_val
+        tx = self.rect.x + int(pct * self.rect.w)
+        if ev_type == 'down':
+            if math.hypot(mx - tx, my - ty) < 14 or self.rect.collidepoint(mx, my):
+                self.dragging = True; self._update_val(mx); return True
+        elif ev_type == 'up': self.dragging = False
+        elif ev_type == 'move' and self.dragging: self._update_val(mx); return True
+        return False
+        
+    def _update_val(self, mx):
+        dx = mx - self.rect.x
+        pct = max(0.0, min(1.0, dx / self.rect.w))
+        self.val = pct * self.max_val
+
