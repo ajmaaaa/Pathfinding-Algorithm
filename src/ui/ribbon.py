@@ -5,53 +5,50 @@ from src.ui.hud import get_font
 
 def draw_vector_icon(surf, name, cx, cy, color):
     if name == 'generate':
-        pygame.draw.arc(surf, color, (cx-10, cy-11, 20, 20), math.radians(45), math.radians(315), 3)
-        pygame.draw.polygon(surf, color, [(cx+6, cy-6), (cx+15, cy-4), (cx+10, cy+3)])
+        pygame.draw.arc(surf, color, (cx-8, cy-8, 16, 16), math.radians(40), math.radians(320), 2)
+        pygame.draw.polygon(surf, color, [(cx+5, cy-4), (cx+10, cy-1), (cx+5, cy+3)])
     elif name == 'acak':
-        s = 8
-        pygame.draw.polygon(surf, (167, 139, 250), [(cx, cy-s), (cx+s, cy-s/2), (cx, cy), (cx-s, cy-s/2)])
-        pygame.draw.polygon(surf, (139, 92, 246), [(cx-s, cy-s/2), (cx, cy), (cx, cy+s), (cx-s, cy+s/2)])
-        pygame.draw.polygon(surf, (124, 58, 237), [(cx, cy), (cx+s, cy-s/2), (cx+s, cy+s/2), (cx, cy+s)])
-        c_white = (255, 255, 255)
-        pygame.draw.circle(surf, c_white, (int(cx), int(cy-s/2)), 1.5)
-        pygame.draw.circle(surf, c_white, (int(cx-s/2), int(cy+s/4)), 1.5)
-        pygame.draw.circle(surf, c_white, (int(cx+s/2), int(cy+s/4)), 1.5)
+        pygame.draw.polygon(surf, color, [(cx, cy-6), (cx+7, cy-3), (cx, cy), (cx-7, cy-3)], 1)
+        pygame.draw.polygon(surf, color, [(cx-7, cy-3), (cx, cy), (cx, cy+6), (cx-7, cy+3)], 1)
+        pygame.draw.polygon(surf, color, [(cx, cy), (cx+7, cy-3), (cx+7, cy+3), (cx, cy+6)], 1)
+        pygame.draw.circle(surf, color, (int(cx), int(cy-3)), 1.5)
     elif name == 'graph':
-        col = (156, 163, 175)
-        for r in [4, 8, 12]:
-            pts = [(cx + math.cos(a)*r, cy + math.sin(a)*r) for a in [i*math.pi/3 for i in range(6)]]
-            pygame.draw.polygon(surf, col, pts, 1)
-        for i in range(6):
-            a = i*math.pi/3
-            pygame.draw.line(surf, col, (cx, cy), (cx + math.cos(a)*12, cy + math.sin(a)*12), 1)
+        n1 = (cx - 6, cy + 4)
+        n2 = (cx + 6, cy + 4)
+        n3 = (cx, cy - 6)
+        pygame.draw.line(surf, color, n1, n2, 1)
+        pygame.draw.line(surf, color, n1, n3, 1)
+        pygame.draw.line(surf, color, n2, n3, 1)
+        pygame.draw.circle(surf, color, n1, 3)
+        pygame.draw.circle(surf, color, n2, 3)
+        pygame.draw.circle(surf, color, n3, 3)
+        pygame.draw.circle(surf, (255, 255, 255), n1, 1)
+        pygame.draw.circle(surf, (255, 255, 255), n2, 1)
+        pygame.draw.circle(surf, (255, 255, 255), n3, 1)
     elif name == 'start':
-        for r in range(12, 0, -1):
-            f = r/12; base_col = (34, 197, 94)
-            c = (min(255, int(base_col[0] + (255-base_col[0])*(1-f))), min(255, int(base_col[1] + (255-base_col[1])*(1-f))), min(255, int(base_col[2] + (255-base_col[2])*(1-f))))
-            pygame.draw.circle(surf, c, (cx - (12-r)*0.3, cy - (12-r)*0.3), r)
+        pygame.draw.circle(surf, color, (cx, cy), 8, 2)
+        pygame.draw.circle(surf, color, (cx, cy), 3)
     elif name == 'end':
-        for r in range(12, 0, -1):
-            f = r/12; base_col = (239, 68, 68)
-            c = (min(255, int(base_col[0] + (255-base_col[0])*(1-f))), min(255, int(base_col[1] + (255-base_col[1])*(1-f))), min(255, int(base_col[2] + (255-base_col[2])*(1-f))))
-            pygame.draw.circle(surf, c, (cx - (12-r)*0.3, cy - (12-r)*0.3), r)
-    elif name == 'play': pygame.draw.polygon(surf, color, [(cx-5, cy-8), (cx+10, cy), (cx-5, cy+8)])
+        pygame.draw.circle(surf, color, (cx, cy), 8, 2)
+        pygame.draw.circle(surf, color, (cx, cy), 3)
+    elif name == 'play':
+        pygame.draw.polygon(surf, color, [(cx-4, cy-7), (cx+8, cy), (cx-4, cy+7)])
     elif name == 'pause':
-        pygame.draw.rect(surf, color, (cx-6, cy-8, 4, 16), border_radius=1)
-        pygame.draw.rect(surf, color, (cx+2, cy-8, 4, 16), border_radius=1)
+        pygame.draw.rect(surf, color, (cx-5, cy-7, 3, 14), border_radius=1)
+        pygame.draw.rect(surf, color, (cx+2, cy-7, 3, 14), border_radius=1)
     elif name == 'reset':
-        col = (107, 114, 128)
-        pygame.draw.arc(surf, col, (cx-10, cy-11, 20, 20), math.radians(225), math.radians(135), 3)
-        pygame.draw.polygon(surf, col, [(cx-6, cy-6), (cx-15, cy-4), (cx-10, cy+3)])
+        pygame.draw.arc(surf, color, (cx-8, cy-8, 16, 16), math.radians(135), math.radians(45), 2)
+        pygame.draw.polygon(surf, color, [(cx-5, cy-3), (cx-10, cy-6), (cx-4, cy-9)])
     elif name == 'prev':
-        col = (156, 163, 175)
-        pygame.draw.rect(surf, col, (cx-8, cy-5, 2, 10))
-        pygame.draw.polygon(surf, col, [(cx-2, cy-5), (cx-8, cy), (cx-2, cy+5)])
-        pygame.draw.polygon(surf, col, [(cx+4, cy-5), (cx-2, cy), (cx+4, cy+5)])
+        pygame.draw.line(surf, color, (cx+3, cy-6), (cx-3, cy), 2)
+        pygame.draw.line(surf, color, (cx-3, cy), (cx+3, cy+6), 2)
     elif name == 'next':
-        col = (156, 163, 175)
-        pygame.draw.polygon(surf, col, [(cx-6, cy-5), (cx, cy), (cx-6, cy+5)])
-        pygame.draw.polygon(surf, col, [(cx, cy-5), (cx+6, cy), (cx, cy+5)])
-        pygame.draw.rect(surf, col, (cx+6, cy-5, 2, 10))
+        pygame.draw.line(surf, color, (cx-3, cy-6), (cx+3, cy), 2)
+        pygame.draw.line(surf, color, (cx+3, cy), (cx-3, cy+6), 2)
+    elif name == 'edit':
+        pygame.draw.line(surf, color, (cx-6, cy+6), (cx+3, cy-3), 2)
+        pygame.draw.polygon(surf, color, [(cx-6, cy+6), (cx-8, cy+8), (cx-5, cy+8)])
+        pygame.draw.circle(surf, color, (cx+5, cy-5), 2)
 
 
 class RibbonButton:
@@ -62,28 +59,67 @@ class RibbonButton:
         self.accent = accent
         self.hov = False; self.active = False; self.disabled = False
 
-    def draw(self, surf):
-        bg = C['ribbon_bg']; brd = None
-        if not self.disabled:
-            if self.active: bg = C['btn_act']; brd = C['btn_border']
-            elif self.hov: bg = C['btn_hov']; brd = C['btn_border']
+    def draw(self, surf, theme='dark'):
+        r = 12
+        if self.disabled:
+            if theme == 'dark':
+                bg, brd, txt_col, ico_col = (30, 41, 59), (51, 65, 85), (100, 116, 139), (100, 116, 139)
+            else:
+                bg, brd, txt_col, ico_col = (248, 250, 252), (241, 245, 249), (203, 213, 225), (203, 213, 225)
+        else:
+            if self.icon_name == 'start':
+                if self.active:
+                    bg, brd, txt_col, ico_col = ((20, 83, 45), (34, 197, 94), (240, 253, 244), (74, 222, 128)) if theme == 'dark' else ((220, 252, 231), (134, 239, 172), (21, 128, 61), (22, 163, 74))
+                elif self.hov:
+                    bg, brd, txt_col, ico_col = ((22, 101, 52), (34, 139, 74), (220, 252, 231), (74, 222, 128)) if theme == 'dark' else ((240, 253, 244), (187, 247, 208), (22, 101, 52), (22, 163, 74))
+                else:
+                    bg, brd, txt_col, ico_col = ((30, 41, 59), (51, 65, 85), (241, 245, 249), (74, 222, 128)) if theme == 'dark' else ((255, 255, 255), (226, 232, 240), (51, 65, 85), (22, 163, 74))
+            elif self.icon_name == 'end':
+                if self.active:
+                    bg, brd, txt_col, ico_col = ((127, 29, 29), (239, 68, 68), (254, 242, 242), (248, 113, 113)) if theme == 'dark' else ((254, 226, 226), (252, 165, 165), (185, 28, 28), (220, 38, 38))
+                elif self.hov:
+                    bg, brd, txt_col, ico_col = ((153, 27, 27), (185, 28, 28), (254, 226, 226), (248, 113, 113)) if theme == 'dark' else ((254, 242, 242), (254, 202, 202), (153, 27, 27), (220, 38, 38))
+                else:
+                    bg, brd, txt_col, ico_col = ((30, 41, 59), (51, 65, 85), (241, 245, 249), (248, 113, 113)) if theme == 'dark' else ((255, 255, 255), (226, 232, 240), (51, 65, 85), (220, 38, 38))
+            elif self.icon_name in ('play', 'pause'):
+                if self.active:
+                    bg, brd, txt_col, ico_col = ((120, 53, 4), (217, 119, 6), (254, 243, 199), (251, 191, 36)) if theme == 'dark' else ((254, 243, 199), (252, 211, 77), (180, 83, 9), (217, 119, 6))
+                elif self.hov:
+                    bg, brd, txt_col, ico_col = ((146, 64, 14), (217, 119, 6), (255, 251, 235), (251, 191, 36)) if theme == 'dark' else ((255, 251, 235), (253, 230, 138), (146, 64, 14), (217, 119, 6))
+                else:
+                    bg, brd, txt_col, ico_col = ((30, 41, 59), (51, 65, 85), (241, 245, 249), (251, 191, 36)) if theme == 'dark' else ((255, 255, 255), (226, 232, 240), (51, 65, 85), (217, 119, 6))
+            elif self.accent == (37, 99, 235):
+                if self.active:
+                    bg, brd, txt_col, ico_col = ((30, 58, 138), (59, 130, 246), (239, 246, 255), (96, 165, 250)) if theme == 'dark' else ((219, 234, 254), (147, 197, 253), (29, 78, 216), (37, 99, 235))
+                elif self.hov:
+                    bg, brd, txt_col, ico_col = ((30, 41, 59), (59, 130, 246), (241, 245, 249), (96, 165, 250)) if theme == 'dark' else ((239, 246, 255), (191, 219, 254), (30, 64, 175), (37, 99, 235))
+                else:
+                    bg, brd, txt_col, ico_col = ((30, 41, 59), (51, 65, 85), (241, 245, 249), (96, 165, 250)) if theme == 'dark' else ((255, 255, 255), (226, 232, 240), (51, 65, 85), (37, 99, 235))
+            else:
+                if self.active:
+                    bg, brd, txt_col, ico_col = ((15, 23, 42), (30, 41, 59), (241, 245, 249), (148, 163, 184)) if theme == 'dark' else ((226, 232, 240), (203, 213, 225), (30, 41, 59), (71, 85, 105))
+                elif self.hov:
+                    bg, brd, txt_col, ico_col = ((51, 65, 85), (71, 85, 105), (255, 255, 255), (226, 232, 240)) if theme == 'dark' else ((241, 245, 249), (226, 232, 240), (51, 65, 85), (71, 85, 105))
+                else:
+                    bg, brd, txt_col, ico_col = ((30, 41, 59), (51, 65, 85), (226, 232, 240), (148, 163, 184)) if theme == 'dark' else ((255, 255, 255), (241, 245, 249), (71, 85, 105), (100, 116, 139))
 
-        pygame.draw.rect(surf, bg, self.rect, border_radius=5)
-        if brd: pygame.draw.rect(surf, brd, self.rect, 1, border_radius=5)
+        if not self.disabled and (self.hov or self.active):
+            glow_color = (*ico_col, 20)
+            glow_surf = pygame.Surface((self.rect.w + 6, self.rect.h + 6), pygame.SRCALPHA)
+            pygame.draw.rect(glow_surf, glow_color, (0, 0, self.rect.w + 6, self.rect.h + 6), border_radius=r + 3)
+            surf.blit(glow_surf, (self.rect.x - 3, self.rect.y - 3))
 
-        ico_col = self.accent if (self.accent and not self.disabled) else C['txt_dim']
-        if self.disabled: txt_col = C['txt_dim']
-        elif self.active: txt_col = C['stat_blue']
-        else: txt_col = C['txt_dark']
+        pygame.draw.rect(surf, bg, self.rect, border_radius=r)
+        pygame.draw.rect(surf, brd, self.rect, 1, border_radius=r)
 
         fl = get_font(10, bold=True)
         tl = fl.render(self.label, True, txt_col)
         cx = self.rect.x + self.rect.w // 2
-        total_h = 24 + 4 + tl.get_height() 
+        total_h = 24 + 4 + tl.get_height()
         sy = self.rect.y + (self.rect.h - total_h) // 2
-        
-        draw_vector_icon(surf, self.icon_name, cx, sy + 12, ico_col)
-        surf.blit(tl, (cx - tl.get_width()//2, sy + 24 + 4))
+
+        draw_vector_icon(surf, self.icon_name, cx, sy + 11, ico_col)
+        surf.blit(tl, (cx - tl.get_width()//2, sy + 24 + 2))
 
 
 class MiniButton:
@@ -91,198 +127,27 @@ class MiniButton:
         self.rect = pygame.Rect(x, y, w, h)
         self.icon_name = icon
         self.hov = False; self.disabled = False
-        
-    def draw(self, surf):
-        bg = C['white']; brd = C['ribbon_sep']; txt = C['txt_dark']
-        if self.disabled: bg = C['ribbon_bg']; txt = C['txt_dim']
-        elif self.hov: bg = C['btn_hov']; brd = C['btn_border']; txt = C['stat_blue']
-            
-        pygame.draw.rect(surf, bg, self.rect, border_radius=6)
-        pygame.draw.rect(surf, brd, self.rect, 1, border_radius=6)
-        
+
+    def draw(self, surf, theme='dark'):
+        r = 10
+        if self.disabled:
+            if theme == 'dark':
+                bg, brd, txt = (30, 41, 59), (51, 65, 85), (100, 116, 139)
+            else:
+                bg, brd, txt = (248, 250, 252), (241, 245, 249), (203, 213, 225)
+        elif self.hov:
+            if theme == 'dark':
+                bg, brd, txt = (51, 65, 85), (71, 85, 105), (96, 165, 250)
+            else:
+                bg, brd, txt = (239, 246, 255), (191, 219, 254), (37, 99, 235)
+        else:
+            if theme == 'dark':
+                bg, brd, txt = (30, 41, 59), (51, 65, 85), (148, 163, 184)
+            else:
+                bg, brd, txt = (255, 255, 255), (241, 245, 249), (71, 85, 105)
+
+        pygame.draw.rect(surf, bg, self.rect, border_radius=r)
+        pygame.draw.rect(surf, brd, self.rect, 1, border_radius=r)
+
         cx = self.rect.x + self.rect.w // 2; cy = self.rect.y + self.rect.h // 2
         draw_vector_icon(surf, self.icon_name, cx, cy, txt)
-
-
-class Slider:
-    def __init__(self, x, y, w, h):
-        self.rect = pygame.Rect(x, y, w, h)
-        self.disabled = True
-        self.val = 0.0; self.max_val = 100.0; self.dragging = False
-
-    def draw(self, surf):
-        ty = self.rect.y + self.rect.h//2 - 2
-        pygame.draw.rect(surf, C['ribbon_sep'], (self.rect.x, ty, self.rect.w, 4), border_radius=2)
-        pct = 0 if self.max_val == 0 else min(1.0, max(0.0, self.val / self.max_val))
-        tx = self.rect.x + int(pct * self.rect.w)
-        
-        col = C['txt_dim'] if self.disabled else (217, 119, 6)
-        pygame.draw.circle(surf, col, (tx, ty+2), 8)
-        if not self.disabled:
-            pygame.draw.circle(surf, (0,0,0,60), (tx, ty+4), 8)
-            pygame.draw.circle(surf, col, (tx, ty+2), 8)
-            pygame.draw.circle(surf, (0, 0, 0), (tx, ty+2), 2.5)
-
-    def handle_mouse(self, mx, my, ev_type):
-        if self.disabled: return False
-        ty = self.rect.y + self.rect.h//2
-        pct = 0 if self.max_val == 0 else self.val / self.max_val
-        tx = self.rect.x + int(pct * self.rect.w)
-        if ev_type == 'down':
-            if math.hypot(mx - tx, my - ty) < 14 or self.rect.collidepoint(mx, my):
-                self.dragging = True; self._update_val(mx); return True
-        elif ev_type == 'up': self.dragging = False
-        elif ev_type == 'move' and self.dragging: self._update_val(mx); return True
-        return False
-        
-    def _update_val(self, mx):
-        dx = mx - self.rect.x
-        pct = max(0.0, min(1.0, dx / self.rect.w))
-        self.val = pct * self.max_val
-
-
-class Ribbon:
-    def __init__(self, W):
-        self.W = W
-        self.btns = {}
-        
-        if not pygame.freetype.was_init(): pygame.freetype.init()
-        fb = get_font(18, bold=True) 
-        t_surf = fb.render('Map Pathfinding', True, (0,0,0))
-        title_w = t_surf.get_width()
-        base_x = 65 + title_w + 25 
-        
-        self.sep_x = base_x - 12
-        x = base_x
-        y = 6; h = 56
-        
-        self.btns['gen']   = RibbonButton(x, y, 60, h, 'generate', 'Generate', (37, 99, 235))
-        x += 60 + 6
-        self.btns['acak']  = RibbonButton(x, y, 48, h, 'acak', 'Acak', (37, 99, 235))
-        x += 48 + 6
-        self.btns['graph'] = RibbonButton(x, y, 48, h, 'graph', 'Graph', C['txt_dark'])
-        x += 48 + 12
-        self.g1_end = x
-        x += 12
-        
-        self.btns['start'] = RibbonButton(x, y, 56, h, 'start', 'Set Start', (34, 197, 94))
-        x += 56 + 6
-        self.btns['end']   = RibbonButton(x, y, 56, h, 'end', 'Set End', (239, 68, 68))
-        x += 56 + 12
-        self.g2_end = x
-        x += 12
-        
-        self.btns['play']  = RibbonButton(x, y, 48, h, 'play', 'Mulai', (217, 119, 6))
-        x += 48 + 8
-        self.btn_prev = MiniButton(x, y + 14, 24, 28, 'prev')
-        x += 24 + 6
-        self.slider = Slider(x, y + 14, 100, 28)
-        x += 100 + 6
-        self.btn_next = MiniButton(x, y + 14, 24, 28, 'next')
-        x += 24 + 8
-        self.btns['reset'] = RibbonButton(x, y, 48, h, 'reset', 'Reset', C['txt_dark'])
-        x += 48 + 14
-        self.g3_end = x
-
-        self.stats_x = x + 10
-        self.stats = {
-            'Node Jalur': ('0', C['stat_blue']),
-            'Edge Jalur': ('0', C['stat_purp']),
-            'Jarak Rute': ('—', C['stat_teal']),
-            'Waktu Cari': ('—', C['stat_amber']),
-            'Dikunjungi': ('0', C['stat_rose']),
-        }
-        self.set_disabled(True)
-
-    def set_disabled(self, v):
-        for k in ['acak', 'start', 'end', 'play', 'reset', 'graph']: self.btns[k].disabled = v
-
-    def draw(self, surf):
-        pygame.draw.rect(surf, C['ribbon_bg'], (0, 0, self.W, RIBBON_H))
-        pygame.draw.line(surf, C['ribbon_sep'], (0, RIBBON_H-1), (self.W, RIBBON_H-1))
-
-        # Logo Kiri
-        lx, ly = 25, 34
-        pygame.draw.polygon(surf, (37, 99, 235), [(lx, ly-6), (lx+8, ly-8), (lx+8, ly+6), (lx, ly+8)])
-        pygame.draw.polygon(surf, (96, 165, 250), [(lx+8, ly-8), (lx+16, ly-6), (lx+16, ly+8), (lx+8, ly+6)])
-        pygame.draw.polygon(surf, (37, 99, 235), [(lx+16, ly-6), (lx+24, ly-8), (lx+24, ly+6), (lx+16, ly+8)])
-        pygame.draw.circle(surf, (255, 255, 255), (lx+5, ly-1), 2)
-        pygame.draw.circle(surf, (255, 255, 255), (lx+19, ly+1), 2)
-        pygame.draw.line(surf, (255, 255, 255), (lx+5, ly-1), (lx+19, ly+1), 1)
-
-        fb = get_font(18, bold=True); fs = get_font(11, bold=False)
-        t1 = fb.render('Map Pathfinding', True, (29, 78, 216)); t2 = fs.render('A* Algorithm Visualizer', True, C['txt_dim'])
-        surf.blit(t1, (65, 20)); surf.blit(t2, (65, 20 + t1.get_height() + 4))
-        
-        pygame.draw.line(surf, C['ribbon_sep'], (self.sep_x, 10), (self.sep_x, RIBBON_H-25))
-
-        for b in self.btns.values(): b.draw(surf)
-        self.btn_prev.draw(surf); self.slider.draw(surf); self.btn_next.draw(surf)
-        
-        fl = get_font(9, bold=True)
-        def draw_gl(text, start_x, end_x):
-            pygame.draw.line(surf, (240,242,244), (start_x+4, RIBBON_H-22), (end_x-4, RIBBON_H-22))
-            t = fl.render(text.upper(), True, C['txt_label'])
-            surf.blit(t, (start_x + (end_x-start_x)//2 - t.get_width()//2, RIBBON_H - 18))
-            pygame.draw.line(surf, C['ribbon_sep'], (end_x, 10), (end_x, RIBBON_H-25))
-            
-        draw_gl("Peta", self.sep_x, self.g1_end)
-        draw_gl("Titik Target", self.g1_end, self.g2_end)
-        draw_gl("Animasi & Kontrol", self.g2_end, self.g3_end)
-        
-        ts = fl.render("LANGKAH PER LANGKAH", True, C['txt_label'])
-        surf.blit(ts, (self.slider.rect.x + self.slider.rect.w//2 - ts.get_width()//2, RIBBON_H - 38))
-
-        fl_stat = get_font(10, bold=True); fv_stat = get_font(20, bold=True)
-        sx = self.stats_x
-        for lbl, (val, col) in self.stats.items():
-            tl = fl_stat.render(lbl.upper(), True, C['txt_label']); tv = fv_stat.render(str(val), True, col)
-            surf.blit(tl, (sx, 18)); surf.blit(tv, (sx, 35))
-            sx += max(tl.get_width(), tv.get_width()) + 14 
-            pygame.draw.line(surf, (240,242,244), (sx - 7, 15), (sx - 7, RIBBON_H - 25))
-
-    def update(self, mx, my):
-        for b in self.btns.values(): b.hov = b.rect.collidepoint(mx, my) and not b.disabled
-        self.btn_prev.hov = self.btn_prev.rect.collidepoint(mx, my) and not self.btn_prev.disabled
-        self.btn_next.hov = self.btn_next.rect.collidepoint(mx, my) and not self.btn_next.disabled
-
-    def check_click(self, mx, my):
-        for k, b in self.btns.items():
-            if b.hov: return k
-        if self.btn_prev.hov: return 'prev'
-        if self.btn_next.hov: return 'next'
-        return None
-
-    def set_stat(self, key, val, col=None):
-        old_col = self.stats[key][1]
-        self.stats[key] = (val, col or old_col)
-
-
-class ZoomControls:
-    def __init__(self, W, H):
-        self.w = 42; self.h = 104
-        self.x = W - self.w - 35; self.y = H - self.h - 35 
-        self.btn_in  = pygame.Rect(self.x, self.y, self.w, 35)
-        self.btn_pct = pygame.Rect(self.x, self.y+35, self.w, 34)
-        self.btn_out = pygame.Rect(self.x, self.y+69, self.w, 35)
-
-    def draw(self, surf, zoom):
-        bg = pygame.Surface((self.w, self.h), pygame.SRCALPHA)
-        pygame.draw.rect(bg, (255, 255, 255, 240), (0, 0, self.w, self.h), border_radius=21)
-        pygame.draw.rect(bg, C['ribbon_sep'], (0, 0, self.w, self.h), 1, border_radius=21)
-        surf.blit(bg, (self.x, self.y))
-        pygame.draw.line(surf, C['ribbon_sep'], (self.x+10, self.y+34), (self.x+self.w-10, self.y+34))
-        pygame.draw.line(surf, C['ribbon_sep'], (self.x+10, self.y+69), (self.x+self.w-10, self.y+69))
-        f_icon = get_font(20, bold=True)
-        t_in = f_icon.render('+', True, C['txt_dark'])
-        surf.blit(t_in, (self.btn_in.x + self.w//2 - t_in.get_width()//2, self.btn_in.y + 17 - t_in.get_height()//2 - 2))
-        t_out = f_icon.render('-', True, C['txt_dark'])
-        surf.blit(t_out, (self.btn_out.x + self.w//2 - t_out.get_width()//2, self.btn_out.y + 17 - t_out.get_height()//2 - 2))
-        f_pct = get_font(10, bold=True)
-        t_pct = f_pct.render(f'{int(zoom*100)}%', True, C['txt_dim'])
-        surf.blit(t_pct, (self.btn_pct.x + self.w//2 - t_pct.get_width()//2, self.btn_pct.y + 17 - t_pct.get_height()//2))
-
-    def click(self, mx, my):
-        if self.btn_in.collidepoint(mx, my):  return 'in'
-        if self.btn_out.collidepoint(mx, my): return 'out'
-        return None
