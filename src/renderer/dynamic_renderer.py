@@ -2,10 +2,9 @@ import pygame
 import math
 import time
 from config import C, RIBBON_H, RW
-from src.core.geometry import get_smooth_path_coord, point_on_polyline
+from src.core.geometry import get_smooth_path_coord, point_on_polyline, _clip_polyline, get_roundabout_clip_distance
 
 class DynamicRenderer:
-    #_init
     def __init__(self, screen, cam):
         self.screen = screen
         self.cam = cam
@@ -21,7 +20,7 @@ class DynamicRenderer:
 
     def _ws(self, wx, wy):
         return self.cam.world_to_screen(wx, wy)
-    
+
     def _curve_until(self, curve, p):
         if not curve:
             return []
@@ -59,11 +58,8 @@ class DynamicRenderer:
                     pts.append(p1)
                 walked += seg
                 
-        return pts    
+        return pts
 
-    def _draw_curve(self, surface, curve, color, width):
-        if len(curve) < 2:
-            return
     def _draw_curve(self, surface, curve, color, width):
         if len(curve) < 2: return
         pts = [self._ws(x, y) for x, y in curve]
@@ -112,7 +108,6 @@ class DynamicRenderer:
             temp.set_alpha(alpha)
         surface.blit(temp, (int(min_x), int(min_y)))
 
-        #draw_car
     def draw_car(self, x, y, angle):
         sc = self.cam.zoom
         if sc < 0.08: return
@@ -476,7 +471,6 @@ class DynamicRenderer:
                 pygame.draw.circle(self.screen, elem['color'], (int(cx), int(cy)), int(rad))
                 pygame.draw.circle(self.screen, (0, 0, 0), (int(cx), int(cy)), int(rad), 1)
 
-    #get_car_transform
     def get_car_transform(self, path_edges, progress):
         if not path_edges or progress <= 0 or progress < path_edges[0]['start']:
             self.car_last_prog = progress
@@ -558,21 +552,23 @@ class DynamicRenderer:
         self.car_last_y = car_y
         return car_x, car_y, self.car_angle
 
-    def draw_anim_layer_ground(self, nodes, search_edges, path_edges, progress):
+    def draw_anim_layer_ground(self, nodes, search_edges, path_edges, progress, edge_curves=None):
         ribbon_h = self.screen.get_height() - self.H
         sc = self.cam.zoom
         ov = pygame.Surface((self.W, self.H + ribbon_h), pygame.SRCALPHA)
+        
+        T_meet = max((se['end'] for se in search_edges), default=0.0)
         
         for se in search_edges:
             if progress >= se['start']:
                 p = (progress - se['start']) / (se['end'] - se['start'])
                 p = max(0, min(1, p))
-                is_eval = progress >= se['target'].eval_step
-                if se['is_optimal']:
-                    color = (59, 130, 246, 178) if is_eval else (46, 204, 113, 153)
-                    lw = max(2, int(RW * 0.4 * sc))
+                
+                if se.get('dir') == 'b':
+                    color = (59, 130, 246, 178)  # Blue
                 else:
-                    color = (239, 68, 68, 102); lw = max(1, int(RW * 0.25 * sc))
+                    color = (46, 204, 113, 153)  # Green
+                lw = max(2, int(RW * 0.4 * sc))
                 
                 curve = self._curve_until(se.get('curve'), p)
                 if not curve:
@@ -580,27 +576,48 @@ class DynamicRenderer:
                     cur_y = se['from'].y + (se['to'].y - se['from'].y) * p
                     curve = [(se['from'].x, se['from'].y), (cur_x, cur_y)]
                 self._draw_curve(ov, curve, color, lw)
-
+ 
         for n in nodes:
             if getattr(n, 'is_roundabout', False):
-                # Draw a node at each road junction on the roundabout
-                is_eval = n.eval_step <= progress; is_disc = n.disc_step <= progress
-                if is_eval or is_disc:
-                    for e in n.edges:
-                        nb = e[1] if e[0] is n else e[0]
-                        L = math.hypot(nb.x - n.x, nb.y - n.y)
-                        if L > 0.0001:
-                            ux = (nb.x - n.x) / L
-                            uy = (nb.y - n.y) / L
-                            jx = n.x + ux * 140.25
-                            jy = n.y + uy * 140.25
+                for e in n.edges:
+                    nb = e[1] if e[0] is n else e[0]
+                    
+                    j_disc_time = float('inf')
+                    j_dir = 'f'
+                    
+                    for se in search_edges:
+                        if (se['from'] is n and se['to'] is nb) or (se['from'] is nb and se['to'] is n):
+                            L = math.hypot(nb.x - n.x, nb.y - n.y)
+                            if L > 0.0001:
+                                if se['from'] is nb:  # Wave entering roundabout
+                                    disc = se.get('orig_end', se['end'])
+                                else:  # Wave exiting roundabout
+                                    disc = se['start']
+                                    
+                                if disc < j_disc_time:
+                                    j_disc_time = disc
+                                    j_dir = se.get('dir', 'f')
+                                    
+                    j_is_disc = (j_disc_time <= T_meet) and (j_disc_time <= progress)
+                    
+                    if j_is_disc:
+                        pts = edge_curves.get(id(e)) if edge_curves else None
+                        if not pts:
+                            pts = [(e[0].x, e[0].y), (e[1].x, e[1].y)]
+                        if e[0] is n:
+                            pts = list(reversed(pts))
+                        r_end = get_roundabout_clip_distance(n, nb)
+                        clipped = _clip_polyline(pts, 0.0, r_end)
+                        if clipped:
+                            jx, jy = clipped[-1]
                             sx, sy = self._ws(jx, jy)
                             if sx < 0 or sx > self.W or sy < ribbon_h or sy > self.H + ribbon_h: continue
-                            if is_eval:
-                                pygame.draw.circle(ov, (59, 130, 246, 230), (sx, sy), max(2, int(RW*.35*sc)))
-                            elif is_disc:
-                                p = (progress - n.disc_step) / 0.5; p = max(0, min(1, p))
-                                if p > 0:
+                            
+                            p = (progress - j_disc_time) / 0.5; p = max(0, min(1, p))
+                            if p > 0:
+                                if j_dir == 'b':
+                                    pygame.draw.circle(ov, (59, 130, 246, 230), (sx, sy), max(2, int(RW*.4*p*sc)))
+                                else:
                                     pygame.draw.circle(ov, (46, 204, 113, 230), (sx, sy), max(2, int(RW*.4*p*sc)))
                 continue
             is_too_close_to_roundabout = False
@@ -612,13 +629,17 @@ class DynamicRenderer:
                         break
             if is_too_close_to_roundabout:
                 continue
-            is_eval = n.eval_step <= progress; is_disc = n.disc_step <= progress
+            is_disc = (n.disc_step <= T_meet) and (n.disc_step <= progress)
             sx, sy = self._ws(n.x, n.y)
             if sx < 0 or sx > self.W or sy < ribbon_h or sy > self.H + ribbon_h: continue
-            if is_eval: pygame.draw.circle(ov, (59, 130, 246, 230), (sx, sy), max(2, int(RW*.35*sc)))
-            elif is_disc:
+            if is_disc:
                 p = (progress - n.disc_step) / 0.5; p = max(0, min(1, p))
-                if p > 0: pygame.draw.circle(ov, (46, 204, 113, 230), (sx, sy), max(2, int(RW*.4*p*sc)))
+                if p > 0:
+                    node_dir = getattr(n, 'search_dir', 'f')
+                    if node_dir == 'b':
+                        pygame.draw.circle(ov, (59, 130, 246, 230), (sx, sy), max(2, int(RW*.4*p*sc)))
+                    else:
+                        pygame.draw.circle(ov, (46, 204, 113, 230), (sx, sy), max(2, int(RW*.4*p*sc)))
 
         for pe in path_edges:
             if progress >= pe['start']:
@@ -637,3 +658,4 @@ class DynamicRenderer:
                 self._draw_curve(ov, curve, (255, 255, 255, 140), max(1, int(RW*.09*sc)))
 
         self.screen.blit(ov, (0, 0))
+
