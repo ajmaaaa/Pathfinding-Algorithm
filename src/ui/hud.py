@@ -28,11 +28,11 @@ def get_font(size, bold=False):
     if key not in _font_cache: _font_cache[key] = SafeFont(size, bold)
     return _font_cache[key]
 
-def draw_badge(surf, text, W):
+def draw_badge(surf, text, W, ribbon_h=88):
     if not text: return
     f   = get_font(12, bold=True); t = f.render(text, True, (146, 64, 14))
     pw  = t.get_width() + 40; ph = 30
-    px  = W // 2 - pw // 2;  py = RIBBON_H + 14
+    px  = W // 2 - pw // 2;  py = ribbon_h + 14
     s   = pygame.Surface((pw, ph), pygame.SRCALPHA); s.fill((255, 251, 235, 240)); surf.blit(s, (px, py))
     pygame.draw.rect(surf, (251, 191, 36), (px, py, pw, ph), 2, border_radius=15)
     surf.blit(t, (px + 20, py + ph//2 - t.get_height()//2))
