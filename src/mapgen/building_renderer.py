@@ -77,8 +77,9 @@ class BuildingRenderer:
             draw_y = sy - int(anchor_y * sc)
             
             margin = 100
+            ribbon_h = self.screen.get_height() - self.H
             if (draw_x > self.W + margin or draw_x + scaled_w < -margin or
-                draw_y > self.H + RIBBON_H + margin or draw_y + scaled_h < RIBBON_H - margin):
+                draw_y > self.H + ribbon_h + margin or draw_y + scaled_h < ribbon_h - margin):
                 return
                 
             if abs(sc - 1.0) < 0.001:
@@ -115,7 +116,8 @@ class BuildingRenderer:
         # Optimasi Culling: jangan render jika di luar layar
         margin = 100
         if draw_x > self.W + margin or draw_x + scaled_w < -margin: return
-        if draw_y > self.H + RIBBON_H + margin or draw_y + scaled_h < RIBBON_H - margin: return
+        ribbon_h = self.screen.get_height() - self.H
+        if draw_y > self.H + ribbon_h + margin or draw_y + scaled_h < ribbon_h - margin: return
         
         # Skalakan surface dan tampilkan ke layar. Cache per zoom kecil supaya
         # generate map padat tetap ringan saat kamera diam atau bergerak pelan.
