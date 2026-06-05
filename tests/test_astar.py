@@ -4,6 +4,7 @@ from src.core.graph import Node
 from src.core.app import App
 from src.algorithm.pathfinder import run_astar_anim
 
+# fungsi TestAStar
 class TestAStar(unittest.TestCase):
     def test_astar_finds_path(self):
         n1 = Node(0, 0)
