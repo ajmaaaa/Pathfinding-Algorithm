@@ -1,1 +1,2 @@
-pygame-ce
+pygame; sys_platform == "win32"
+pygame-ce; sys_platform != "win32"
