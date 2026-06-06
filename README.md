@@ -39,73 +39,102 @@ A real-time **A* pathfinding visualizer** built on top of a fully **procedurally
 
 ### Prerequisites
 
-| Requirement       | Version             | Notes                    |
-| ----------------- | ------------------- | ------------------------ |
-| Python            | 3.10 or higher      | Download from python.org |
-| pip               | bundled with Python | —                        |
-| Screen resolution | 1280 × 800 minimum  | Window is resizable      |
+| Requirement       | Version             | Notes                                                 |
+| ----------------- | ------------------- | ----------------------------------------------------- |
+| Python            | 3.10 to 3.12        | Recommended. Download from python.org                 |
+| pip               | bundled with Python | Package manager for Python                            |
+| Screen resolution | 1280 × 800 minimum  | Window is resizable                                   |
 
 ---
 
-### 🖥️ Windows
+### 🐍 Python Installation Guide
+
+#### 🖥️ Windows
+1. Download the installer for **Python 3.10+** (e.g., Python 3.11 or 3.12) from the [official Python website](https://www.python.org/downloads/).
+2. Run the installer and **IMPORTANT**: Check the box at the bottom that says **"Add python.exe to PATH"**. If you skip this, the `python` and `pip` commands will not be recognized in your Command Prompt or PowerShell.
+3. Choose "Install Now".
+4. Verify the installation by opening a new Command Prompt/PowerShell and running:
+   ```bash
+   python --version
+   pip --version
+   ```
+
+#### 🐧 Linux (Ubuntu/Debian)
+1. Update your package list and install Python 3 along with pip and the virtual environment module:
+   ```bash
+   sudo apt update
+   sudo apt install python3 python3-pip python3-venv -y
+   ```
+2. Verify the installation:
+   ```bash
+   python3 --version
+   pip3 --version
+   ```
+
+---
+
+### 🎮 Pygame / Pygame-ce Installation
+
+This project is compatible with both standard **Pygame** and **Pygame Community Edition (pygame-ce)**. The `requirements.txt` is configured to automatically install the appropriate version for your platform:
+* **Windows**: Installs standard **Pygame** (`pygame`) for ease of compilation and system compatibility.
+* **Linux / macOS**: Installs **Pygame Community Edition** (`pygame-ce`) for performance optimizations.
+
+Both packages use the same namespace (`import pygame`), so the codebase runs seamlessly on all systems without any modifications.
+
+---
+
+### 🖥️ Windows Setup & Run
 
 **Step 1 — Clone or download this repository**
-
 ```bash
 git clone https://github.com/your-username/Pathfinding-Algorithm.git
 cd Pathfinding-Algorithm
 ```
 
 **Step 2 — (Recommended) Create a virtual environment**
-
 ```bash
 python -m venv venv
 venv\Scripts\activate
 ```
 
 **Step 3 — Install dependencies**
-
 ```bash
 pip install -r requirements.txt
 ```
 
 **Step 4 — Run**
-
 ```bash
 python main.py
 ```
 
 ---
 
-### 🐧 Linux
+### 🐧 Linux Setup & Run
 
 **Step 1 — Clone the repository**
-
 ```bash
 git clone https://github.com/your-username/Pathfinding-Algorithm.git
 cd Pathfinding-Algorithm
 ```
 
 **Step 2 — Create a virtual environment (recommended)**
-
 ```bash
 python3 -m venv venv
 source venv/bin/activate
 ```
 
 **Step 3 — Install dependencies**
-
 ```bash
 pip install -r requirements.txt
 ```
 
 **Step 4 — Run**
-
 ```bash
 python3 main.py
 ```
 
 ---
+
 
 ## 🎮 How to Use
 
