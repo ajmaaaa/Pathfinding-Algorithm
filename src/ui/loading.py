@@ -79,7 +79,8 @@ def show_loading_screen(screen, generate_func=None):
     thread.daemon = True
     thread.start()
     
-    clock = pygame.Clock()
+    # Gunakan pygame.time.Clock agar kompatibel dengan pygame biasa (Windows) & pygame-ce (Linux)
+    clock = pygame.time.Clock()
     angle = 0.0
     
     while thread.is_alive():
