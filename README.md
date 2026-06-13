@@ -1,124 +1,305 @@
-# Pathfinding Algorithm — A\* Visualizer
 
-Visualisasi algoritma pencarian jalur A\* di atas peta kota isometrik yang di-*generate* secara prosedural.
+<div align="center">
 
-## Cara Menjalankan
+<img src="docs/screenshot.png" alt="A* Pathfinding Visualizer — isometric city map" width="100%" style="border-radius:12px"/>
 
+<br/>
+<br/>
+
+<h1>
+  🗺️ A* Pathfinding Algorithm
+</h1>
+
+<p><em>Watch the algorithm think — on a procedurally generated isometric island city</em></p>
+
+<br/>
+
+[![Python](https://img.shields.io/badge/Python-3.10%2B-3776AB?style=for-the-badge\&logo=python\&logoColor=white)](https://www.python.org/)
+[![Pygame](https://img.shields.io/badge/Pygame-2.x-00B400?style=for-the-badge\&logo=python\&logoColor=white)](https://www.pygame.org/)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux-0078D4?style=for-the-badge\&logo=linux\&logoColor=white)](https://github.com)
+[![Tests](https://img.shields.io/badge/Tests-Passing-brightgreen?style=for-the-badge)](tests/)
+
+<br/>
+
+</div>
+
+---
+
+## ✨ What Is This?
+
+A real-time **A* pathfinding visualizer** built on top of a fully **procedurally generated isometric city**. Every time you press *Generate*, a new island city is born — complete with roads, buildings, parks, harbors, and a road network graph. Then you drop a start point, drop an end point, and watch A* explore the graph live, step by step, before a car drives the final route.
+
+> No two maps are the same. No two routes are the same.
+
+<br/>
+
+---
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+| Requirement       | Version             | Notes                                                 |
+| ----------------- | ------------------- | ----------------------------------------------------- |
+| Python            | 3.10 to 3.12        | Recommended. Download from python.org                 |
+| pip               | bundled with Python | Package manager for Python                            |
+| Screen resolution | 1280 × 800 minimum  | Window is resizable                                   |
+
+---
+
+### 🐍 Python Installation Guide
+
+#### 🖥️ Windows
+1. Download the installer for **Python 3.10+** (e.g., Python 3.11 or 3.12) from the [official Python website](https://www.python.org/downloads/).
+2. Run the installer and **IMPORTANT**: Check the box at the bottom that says **"Add python.exe to PATH"**. If you skip this, the `python` and `pip` commands will not be recognized in your Command Prompt or PowerShell.
+3. Choose "Install Now".
+4. Verify the installation by opening a new Command Prompt/PowerShell and running:
+   ```bash
+   python --version
+   pip --version
+   ```
+
+#### 🐧 Linux (Ubuntu/Debian)
+1. Update your package list and install Python 3 along with pip and the virtual environment module:
+   ```bash
+   sudo apt update
+   sudo apt install python3 python3-pip python3-venv -y
+   ```
+2. Verify the installation:
+   ```bash
+   python3 --version
+   pip3 --version
+   ```
+
+---
+
+### 🎮 Pygame / Pygame-ce Installation
+
+This project is compatible with both standard **Pygame** and **Pygame Community Edition (pygame-ce)**. The `requirements.txt` is configured to automatically install the appropriate version for your platform:
+* **Windows**: Installs standard **Pygame** (`pygame`) for ease of compilation and system compatibility.
+* **Linux / macOS**: Installs **Pygame Community Edition** (`pygame-ce`) for performance optimizations.
+
+Both packages use the same namespace (`import pygame`), so the codebase runs seamlessly on all systems without any modifications.
+
+---
+
+### 🖥️ Windows Setup & Run
+
+**Step 1 — Clone or download this repository**
+```bash
+git clone https://github.com/your-username/Pathfinding-Algorithm.git
+cd Pathfinding-Algorithm
+```
+
+**Step 2 — (Recommended) Create a virtual environment**
+```bash
+python -m venv venv
+venv\Scripts\activate
+```
+
+**Step 3 — Install dependencies**
 ```bash
 pip install -r requirements.txt
+```
+
+**Step 4 — Run**
+```bash
 python main.py
 ```
 
-## Struktur Repository
+---
 
+### 🐧 Linux Setup & Run
+
+**Step 1 — Clone the repository**
+```bash
+git clone https://github.com/your-username/Pathfinding-Algorithm.git
+cd Pathfinding-Algorithm
 ```
+
+**Step 2 — Create a virtual environment (recommended)**
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+**Step 3 — Install dependencies**
+```bash
+pip install -r requirements.txt
+```
+
+**Step 4 — Run**
+```bash
+python3 main.py
+```
+
+---
+
+
+## 🎮 How to Use
+
+Once the app is running, a random island city will be generated automatically.
+
+| Control                      | Action                                       |
+| ---------------------------- | -------------------------------------------- |
+| **Generate**                 | Build a brand-new procedural island city     |
+| **Acak**                     | Pick a random start & end node automatically |
+| **Set Start** → click on map | Place the pathfinding origin point           |
+| **Set End** → click on map   | Place the pathfinding destination point      |
+| **Mulai / Pause**            | Play or pause the A* animation               |
+| **← / →** buttons            | Step backward / forward one frame at a time  |
+| **Reset**                    | Clear the current route                      |
+| **Graph**                    | Toggle the road graph overlay visibility     |
+| **Scroll wheel**             | Zoom in / out                                |
+| **Click & drag**             | Pan the camera                               |
+
+### Stats Panel
+
+During and after a pathfinding run, the ribbon shows five live statistics:
+
+| Stat           | Meaning                                    |
+| -------------- | ------------------------------------------ |
+| **Node Jalur** | Number of nodes in the final route         |
+| **Edge Jalur** | Number of road segments in the final route |
+| **Jarak Rute** | Total route distance (pixels)              |
+| **Waktu Cari** | Time A* spent searching (ms)               |
+| **Dikunjungi** | Total nodes evaluated during the search    |
+
+---
+
+## 🧠 Algorithm Details
+
+### A* Search
+
+The core algorithm (`src/algorithm/pathfinder.py`) is a standard **A*** with:
+
+* **Heuristic:** Euclidean distance — straight-line distance from any node to the goal
+* **Priority queue:** Custom min-heap (`src/algorithm/min_heap.py`) — no external heap library
+* **Edge weights:** Physical distance between connected road nodes
+* **Graph:** Undirected — every road edge can be traversed in both directions
+
+```text
+f(n) = g(n) + h(n)
+       │        └── euclidean_distance(n, goal)
+       └── cost so far (sum of edge lengths from start to n)
+```
+
+### Procedural City Generation
+
+`src/core/city_gen.py` builds the city in five stages:
+
+```text
+1. Road Skeleton   → connected graph along isometric diagonal axes
+2. Zoning System   → geometric zones (CBD · Residential · Park · Harbor)
+3. Connector Roads → short stubs linking building platforms to skeleton
+4. Validation      → connectivity check + green / road ratio guard
+5. Decoration      → zone-aware tree scatter, sea objects, lighting
+```
+
+---
+
+## 🏗️ Project Structure
+
+```text
 Pathfinding-Algorithm/
 │
-├── main.py                        # Entry point — jalankan ini
-├── config.py                      # Konstanta global (layar, warna, FPS)
+├── main.py                     ← Entry point — run this
+├── config.py                   ← Global constants (screen, colors, FPS)
 ├── requirements.txt
 │
 ├── src/
-│   ├── core/                      # Logika inti aplikasi
-│   │   ├── app.py                 # App loop utama (event, render, kamera)
-│   │   ├── city_gen.py            # Generator peta prosedural (node + edge)
-│   │   ├── graph.py               # Struktur data Node & Edge
-│   │   └── geometry.py            # Utilitas geometri (smooth path, dll.)
+│   ├── core/
+│   │   ├── app.py              ← Main app loop (events, render, camera)
+│   │   ├── city_gen.py         ← Procedural map + graph generator
+│   │   ├── graph.py            ← Node & Edge data structures
+│   │   └── geometry.py         ← Smooth path utilities (Bezier, polyline)
 │   │
-│   ├── algorithm/                 # Implementasi A*
-│   │   ├── pathfinder.py          # Algoritma A* + animasi
-│   │   ├── heuristic.py           # Fungsi heuristik (Euclidean, Manhattan)
-│   │   └── min_heap.py            # Priority queue (min-heap) custom
+│   ├── algorithm/
+│   │   ├── pathfinder.py       ← A* implementation + animation data
+│   │   ├── heuristic.py        ← Euclidean / Manhattan heuristics
+│   │   └── min_heap.py         ← Custom priority queue (min-heap)
 │   │
-│   ├── renderer/                  # Sistem render kamera & layer
-│   │   ├── camera.py              # Kamera (pan, zoom, world↔screen)
-│   │   ├── static_renderer.py     # Layer statis: background, jalan, graph
-│   │   └── dynamic_renderer.py    # Layer dinamis: animasi A*, mobil
+│   ├── renderer/
+│   │   ├── camera.py           ← Pan, zoom, world ↔ screen projection
+│   │   ├── static_renderer.py  ← Background, roads, graph overlay
+│   │   └── dynamic_renderer.py ← A* animation, car movement
 │   │
-│   ├── mapgen/                    # Penempatan & render bangunan lama
-│   │   ├── building_placer.py     # Logika penempatan bangunan di peta
-│   │   ├── building_renderer.py   # Render bangunan (dispatcher ke komponen)
-│   │   └── else_renderer.py       # Render elemen lain (pin, dll.)
+│   ├── mapgen/
+│   │   ├── building_placer.py  ← Building placement logic
+│   │   ├── building_renderer.py← Dispatches to isometric components
+│   │   └── else_renderer.py    ← Pins, misc overlays
 │   │
-│   ├── ui/                        # Antarmuka pengguna
-│   │   ├── ribbon.py              # Ribbon toolbar atas (tombol, slider)
-│   │   ├── hud.py                 # Badge, tooltip, overlay
-│   │   └── loading.py             # Layar loading
-│   │
-│   └── components/                # ★ KOMPONEN VISUAL ISOMETRIK ★
-│       ├── component_registry.py  # Registri pusat semua komponen
-│       │
-│       ├── bangunan/              # Gedung & bangunan buatan manusia
-│       │   ├── gedung.py          # Gedung kaca bertingkat + helipad
-│       │   ├── rumah.py           # Rumah klasik + atap limas
-│       │   ├── sekolah.py         # Sekolah L-shape + jam dinding
-│       │   ├── rumah_sakit.py     # RS modern + ambulans
-│       │   └── TEMPLATE_KOMPONEN.py # Untuk komponen baru jika ada
-│       │
-│       ├── alam/                  # Elemen alam
-│       │   └── pohon.py           # Pohon isometrik (depan & belakang)
-│       │
-│       ├── infrastruktur/         # Jalan, jembatan, lampu, rambu
-│       │   └── (dalam pengembangan)
-│       │
-│       └── latar/                 # Tile tanah, laut, langit
-│           └── (dalam pengembangan)
-│
-├── tests/                         # Unit test
-│   ├── test_astar.py
-│   ├── test_geometry.py
-│   ├── test_map_gen.py
-│   └── test_min_heap.py
+│   └── ui/
+│       ├── ribbon.py           ← Top toolbar (buttons, slider, stats)
+│       ├── hud.py              ← Badges, tooltips
+│       └── loading.py          ← Loading screen
 │
 ├── assets/
-│   └── fonts/                     # Font
+│   └── components/             ← 30+ isometric building components
+│       ├── gedung.py, sekolah.py, masjid.py, bandara.py …
+│       └── component_registry.py
 │
-└── docs/                          # Dokumentasi tambahan
+└── tests/
+    ├── test_astar.py
+    ├── test_geometry.py
+    ├── test_map_gen.py
+    └── test_min_heap.py
 ```
 
-## Cara Menambah Komponen Baru
+---
 
-1. **Salin template:**
-   ```bash
-   cp src/components/bangunan/TEMPLATE_KOMPONEN.py src/components/bangunan/masjid.py
-   ```
+## 🧪 Running Tests
 
-2. **Isi fungsi `render_<nama>(layar, cx, cy)`** di file baru.
+```bash
+python -m pytest tests/ -v
+```
 
-3. **Daftarkan di `__init__.py` subfolder:**
-   ```python
-   # src/components/bangunan/__init__.py
-   from .masjid import render_masjid
-   __all__ = [..., "render_masjid"]
-   ```
+Four test suites are included:
 
-4. **Tambahkan ke `component_registry.py`:**
-   ```python
-   "masjid": {
-       "render"   : render_masjid,
-       "kategori" : "bangunan",
-       "tier"     : 2,
-       "walkable" : False,
-   }
-   ```
+| Test File          | What It Covers                                  |
+| ------------------ | ----------------------------------------------- |
+| `test_astar.py`    | A* finds correct paths on simple graphs         |
+| `test_min_heap.py` | Min-heap push / pop order correctness           |
+| `test_geometry.py` | Bezier curve & polyline length utilities        |
+| `test_map_gen.py`  | City generator produces a valid connected graph |
 
-## Komponen yang Sudah Ada
+---
 
-| Komponen       | Kategori       | Tier |
-|----------------|----------------|------|
-| gedung         | bangunan       | 3    |
-| sekolah        | bangunan       | 2    |
-| rumah_sakit    | bangunan       | 2    |
-| rumah          | bangunan       | 1    |
-| pohon_belakang | alam           | 1    |
-| pohon_depan    | alam           | 1    |
+## 🏙️ Isometric Components
 
-## Komponen yang Direncanakan
+The visual city is built from **30+ hand-coded isometric components**, each drawn entirely with Pygame polygons (no sprites / image files).
 
-- `latar/laut.py` — Tile laut / air dengan efek gelombang
-- `latar/pantai.py` — Garis pantai (transisi darat↔laut)
-- `alam/sungai.py` — Sungai dengan jembatan
-- `infrastruktur/jalan.py` — Segmen jalan isometrik
-- `infrastruktur/jembatan.py` — Jembatan
-- `bangunan/masjid.py` — Masjid dengan kubah
-- `bangunan/toko.py` — Toko/ruko
+| Component                    | Description                          |
+| ---------------------------- | ------------------------------------ |
+| `gedung_a/b/c/d`             | Glass office towers, various heights |
+| `bandara`                    | Full airport with runway & terminal  |
+| `stadion`                    | Sports stadium                       |
+| `masjid`                     | Mosque with dome                     |
+| `pelabuhan`                  | Harbor with docks                    |
+| `bianglala`                  | Ferris wheel                         |
+| `kapal_kargo`, `kapal_layar` | Sea vessels                          |
+| `hiu`                        | Decorative shark in the ocean        |
+| `mercusuar`                  | Lighthouse                           |
+
+---
+
+## ⚙️ Configuration
+
+Edit `config.py` to tweak global settings:
+
+```python
+SCREEN_W  = 1280          # Window width
+SCREEN_H  = 800           # Window height
+FPS       = 60            # Target frame rate
+
+SEARCH_ANIM_SPEED = 0.0012  # A* search animation speed
+DRIVE_ANIM_SPEED  = 0.008   # Car driving speed after route is found
+```
+
+---
+
+## 📄 License
+
+This project was developed for educational and academic purposes.
+
+All rights reserved by the authors.
